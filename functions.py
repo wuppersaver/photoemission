@@ -11,7 +11,7 @@ def calc_surface_energy(bulk_energy,slab_energy,n_units):
     #slab_energy (float): energy of the slab
     #n_units (int): number of bulk units in the slab
     
-    e_surf = slab_energy-(bulk_energy*n_units)
+    e_surf = 0.5*slab_energy-(bulk_energy*n_units)
     
     return e_surf
 
