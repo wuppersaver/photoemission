@@ -60,7 +60,7 @@ def generate_qsub_file(**options):
     with open('./{0}/{0}.qsub'.format(options['seed_name']), 'w') as f:
         for line in output:
             f.write(line)
-
+    return;
 
     #based on the CASTEP calculator functionality. For documentation see 
     #https://wiki.fysik.dtu.dk/ase/ase/calculators/castep.html#module-ase.calculators.castep
@@ -80,12 +80,10 @@ def generate_castep_input(calc_struct='hello', **options):
     ## fix_all_cell (str): boolean value, defines if all the cell parameters should stay fixed during a optimisation run
     
     if not isinstance(calc_struct,ase.atoms.Atoms):
-        raise TypeError('An ASE structure object has to be given!')        
+        raise TypeError('An ASE Atoms object has to be given!')        
         
     # initialize the calculator instance
     calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
-    # prevent calculator from checking for castep.json file
-    calc._keyword_tolerance = 3
     # include interface settings in .param file
     calc._export_settings = False
 
