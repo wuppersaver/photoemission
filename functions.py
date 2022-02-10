@@ -22,7 +22,7 @@ def get_qe(optados_output):
     pass
 
 def generate_qsub_file(**options):
-    # IMPORTANT!!This function is very specific to the machine the generated file is inteded for!
+    # IMPORTANT!!This function is very specific to the machine the generated file is intended for!
     
     # seed_name (str) : seed for input and output files for calculation
     # queue (str) : dictionary key for the submission queue (see queues dict below)
