@@ -47,7 +47,7 @@ def get_energies(seed):
 
 
 def generate_qsub_file(**options):
-    # IMPORTANT!!This function is very specific to the machine the generated file is inteded for!
+    # IMPORTANT!!This function is very specific to the machine the generated file is intended for!
     
     # seed_name (str) : seed for input and output files for calculation
     # queue (str) : dictionary key for the submission queue (see queues dict below)
@@ -84,7 +84,8 @@ def generate_qsub_file(**options):
     with open('./{0}/{0}.qsub'.format(options['seed_name']), 'w') as f:
         for line in output:
             f.write(line)
-    
+    return;
+
 
     #based on the CASTEP calculator functionality. For documentation see 
     #https://wiki.fysik.dtu.dk/ase/ase/calculators/castep.html#module-ase.calculators.castep
@@ -108,12 +109,10 @@ def generate_castep_input(calc_struct='hello', **options):
     #TODO WRITE_FORMATTED_POTENTIAL : TRUE  ;   WRITE_FORMATTED_DENSITY : TRUE; MAX_SCF_CYCLES : int
     
     if not isinstance(calc_struct,ase.atoms.Atoms):
-        raise TypeError('An ASE structure object has to be given!')        
+        raise TypeError('An ASE Atoms object has to be given!')        
         
     # initialize the calculator instance
     calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
-    # prevent calculator from checking for castep.json file
-    calc._keyword_tolerance = 3
     # include interface settings in .param file
     calc._export_settings = False
 
@@ -151,6 +150,7 @@ def generate_castep_input(calc_struct='hello', **options):
     
     #Create input files
     calc_struct.calc.initialize()
+<<<<<<< HEAD
     
     return;
     
@@ -163,3 +163,6 @@ def get_wulff_fractions(mat_structure, facets_energies : dict):
         for key, value in d.items():
             new[key].append(value)
     return new;
+=======
+    return;
+>>>>>>> dfba282b352e1408cd80e6a44fdae823cd759102
