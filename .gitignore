@@ -132,4 +132,6 @@ dmypy.json
 *.cif
 
 # Cu_* folders
-Cu_*/
+structures/
+.vscode/
+Plotting.ipynb
