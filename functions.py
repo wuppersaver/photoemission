@@ -234,7 +234,6 @@ def average_potential_from_file(input_file):
     
     np.savetxt(new_file,results,delimiter=' ')
     return;
-
 def create_bands_file(calc_struct,seed : str):
     calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
     calc_struct.calc = calc
@@ -242,10 +241,8 @@ def create_bands_file(calc_struct,seed : str):
     print(bandstructure)
     bandstructure.write(fd = f'./structures/band_jsons/{seed}.json')
     return bandstructure;
-
 def read_bands2pmg(seed : str):
     #WORK IN PROGRESS
-    #Function to transform a crystal band file into a pmg band object
     #Format of the pmg object:
     #classBandStructure(kpoints, eigenvals, lattice, efermi, labels_dict=None, coords_are_cartesian=False, structure=None, projections=None)
     
@@ -321,7 +318,7 @@ def read_bands2pmg(seed : str):
                 eigenvalues[Spin.up][i][j]=float(eigenv_temp)
                   
     # Create Pymatgen Bandstructure Object and save as .json file. 
-    bandstruct_object = BandStructureSymmLine(k_points_coordinates, eigenvalues,lattice_obj.reciprocal_lattice, fermi_energy,labels_dict,coords_are_cartesian=False)
+    bandstruct_object = BandStructureSymmLine(kpoints = k_points_coordinates, eigenvals = eigenvalues,lattice = lattice_obj.reciprocal_lattice, efermi = fermi_energy,labels_dict = labels_dict,coords_are_cartesian=False)
     #with open(f'./structures/band_jsons/{seed}.json', 'w') as f:
     #    json.dump(bandstruct_object.as_dict(), f)       
     return bandstruct_object;
