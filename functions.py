@@ -646,7 +646,7 @@ def bs_plot_data(zero_to_efermi=True,bs = None, bs_ref=None, split_branches=True
         distances = bs.distance
         if bs_ref is not None:
             if bs_ref.branches != bs.branches:
-                distances = self._rescale_distances(bs_ref, bs)
+                distances = bs._rescale_distances(bs_ref, bs)
 
         if split_branches:
             steps = [br["end_index"] + 1 for br in bs.branches][:-1]
@@ -722,7 +722,7 @@ def get_ticks(bs):
             ticks.
         """
         bs = [bs]
-        bs = bs[0] if isinstance(bs, list) else self.bs
+        bs = bs[0] if isinstance(bs, list) else bs
         ticks, distance = [], []
         for br in bs.branches:
             s, e = br["start_index"], br["end_index"]
