@@ -6,6 +6,7 @@ Created on Mon Jan 24 10:50:04 2022
 @author: brunocamino
 """
 
+from matplotlib.pyplot import plot, xlim
 import numpy as np
 import ase
 import re
@@ -29,7 +30,7 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 import matplotlib.lines as mlines
 import math
-import matplotlib
+import matplotlib.pyplot as plt
 
 def calc_surface_energy(bulk_energy,slab_energy,n_units, area):
     #bulk_energy (float): energy of the bulk
@@ -163,21 +164,9 @@ def generate_castep_input(calc_struct='hello', **options):
         if options['snap_to_symmetry']:
             calc.cell.snap_to_symmetry = 'TRUE'
         if options['task'] == 'BandStructure':
-            #print('bandstructure')
-            #high_symm = ase.dft.kpoints.get_special_points(calc_struct.cell)
-            #band_path = ase.dft.kpoints.bandpath(high_symm, calc_struct.cell,npoints = len(high_symm.keys()))
             band_path = calc_struct.cell.bandpath(options['bandstruct_path'], density = options['bandstruct_kpt_dist'])
-            #print(band_path)
-            #print(band_path.kpts())
             calc.set_bandpath(bandpath=band_path)
             calc.cell.bs_kpoint_path_spacing = options['bandstruct_kpt_dist']
-            with open(f"./structures/bandpaths/{options['label']}.bandpath", 'w') as f:
-                for i in range(len(options['bandstruct_path'])):
-                    if i == len(options['bandstruct_path'])-1:
-                        f.write(options['bandstruct_path'][i] + '\n')
-                    else:    
-                        f.write(options['bandstruct_path'][i] + ',')
-                f.write(np.array2string(band_path[0]))
         calc.set_kpts(options['kpoints'])
         calc.cell.fix_all_cell = options['fix_all_cell']
        
@@ -414,6 +403,55 @@ def append_symm_line(base_bandstruct, line_to_add):
     
     return BandStructureSymmLine(kpoints, eigenvalues, base_bandstruct.lattice_rec, base_dict['efermi'], base_dict['labels_dict']);
 
+def plot_dos_optados(seed:str, shift_efermi:bool = False, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False):
+    energies, up, down, total, max_value = [],[],[],[],[]
+    up_total = 0
+    down_total = 0
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    with open(f'./structures/{seed}/{seed}.adaptive.dat','r') as f:
+        for line in f:
+            line = line.strip()
+            values = line.split()
+            if '#' not in values[0]:
+                energies.append(float(values[0]))
+                up.append(float(values[1]))
+                down.append(float(values[2]))
+                total.append(float(values[1])-float(values[2]))
+                up_total = float(values[3])
+                down_total = float(values[4])
+    with open(f"./structures/{seed}/{seed}.odo", 'r') as o:
+        for line in o:
+            line = line.strip()
+            if 'Setting Fermi Energy' in line:
+                temp = next(o).strip().split()
+                efermi = float(temp[6])
+                break
+    ax.set(xlim = [energies[0],energies[-1]], xlabel = 'Energy [eV]', ylabel = 'DOS', yticks = [], title = f'DOS Plot for {seed}')
+    ax.axhline(0, c = 'gray')
+    if plot_up:
+        max_value.append(max(up))
+    if plot_down:
+        max_value.append(max(down))
+    if plot_total:
+        max_value.append(max(total))
+    if shift_efermi:
+        ax.axvline(0, c = '0', ls = '--', alpha = 0.8)
+        energies = [item - efermi for item in energies]
+        ax.set(xlabel = r'$\mathrm{Energy - E}_{f}$  [eV]', xlim = [energies[0],energies[-1]])
+    else:
+        ax.axvline(efermi, c = '0', ls = '--', label = 'Fermi Energy', alpha = 0.8)
+    if plot_up:
+        ax.plot(energies, up, label = 'up')
+    if plot_down:
+        down_flip = [-1*item for item in down]
+        ax.plot(energies, down_flip, label = 'down', alpha = 0.5)
+    if plot_total:
+        ax.plot(energies, total, label = 'total')
+    ax.set(ylim = [-0.02, max(max_value)+0.1])
+    ax.legend()
+    plt.tight_layout()
+    return fig,ax;
 
 #Everything below this is to plot bandstructure plots with functions adapted from the pymatgen module
 
@@ -428,9 +466,9 @@ def get_bs_plot(
         smooth_np=100,
         bs_labels=[],
     ):
-        matplotlib.style.use('seaborn-darkgrid')
-        matplotlib.rcParams["font.family"] = "serif"
-        plt = pretty_plot(12, 8)
+        plt.style.use('seaborn-darkgrid')
+        plt.rcParams["font.family"] = "serif"
+        pretty = pretty_plot(12, 8)
         bs_array = [bandstructure]
 
         if isinstance(smooth, bool):
@@ -439,7 +477,7 @@ def get_bs_plot(
         handles = []
         vbm_min, cbm_max = [], []
 
-        colors = list(plt.rcParams["axes.prop_cycle"].by_key().values())[0]
+        colors = list(pretty.rcParams["axes.prop_cycle"].by_key().values())[0]
         for ibs, bs in enumerate(bs_array):
 
             # set first bs in the list as ref for rescaling the distances of the other bands
@@ -474,19 +512,19 @@ def get_bs_plot(
                 distances, energies = data["distances"], data["energy"][str(sp)]
 
                 for dist, ene in zip(distances, energies):
-                    plt.plot(dist, ene.T, ls=ls)
+                    pretty.plot(dist, ene.T, ls=ls)
 
             # plot markers for vbm and cbm
             if vbm_cbm_marker:
                 for cbm in data["cbm"]:
-                    plt.scatter(cbm[0], cbm[1], color="r", marker="o", s=100)
+                    pretty.scatter(cbm[0], cbm[1], color="r", marker="o", s=100)
                 for vbm in data["vbm"]:
-                    plt.scatter(vbm[0], vbm[1], color="g", marker="o", s=100)
+                    pretty.scatter(vbm[0], vbm[1], color="g", marker="o", s=100)
 
             # Draw Fermi energy, only if not the zero
             if not zero_to_efermi:
                 ef = bs.efermi
-                plt.axhline(ef, lw=2, ls="-.", color=colors[ibs])
+                pretty.axhline(ef, lw=2, ls="-.", color=colors[ibs])
 
         # defaults for ylim
         e_min = -4
@@ -499,43 +537,43 @@ def get_bs_plot(
             if zero_to_efermi:
                 if one_is_metal:
                     # Plot A Metal
-                    plt.ylim(e_min, e_max)
+                    pretty.ylim(e_min, e_max)
                 else:
-                    plt.ylim(e_min, max(cbm_max) + e_max)
+                    pretty.ylim(e_min, max(cbm_max) + e_max)
             else:
                 all_efermi = [b.efermi for b in bs_array]
                 ll = min([min(vbm_min), min(all_efermi)])
                 hh = max([max(cbm_max), max(all_efermi)])
-                plt.ylim(ll + e_min, hh + e_max)
+                pretty.ylim(ll + e_min, hh + e_max)
         else:
-            plt.ylim(ylim)
-        plt = maketicks(bs,plt)
+            pretty.ylim(ylim)
+        pretty = maketicks(bs, pretty)
 
         # Main X and Y Labels
         #plt.xlabel(r"$\mathrm{Wave\ Vector}$", fontsize=30)
-        plt.xlabel('')
+        pretty.xlabel('')
         ylabel = r"$\mathrm{E\ -\ E_f\ (eV)}$" if zero_to_efermi else r"$\mathrm{Energy\ (eV)}$"
-        plt.ylabel(ylabel, fontsize=20)
+        pretty.ylabel(ylabel, fontsize=20)
 
         # X range (K)
         # last distance point
         x_max = data["distances"][-1][-1]
-        plt.xlim(0, x_max)
+        pretty.xlim(0, x_max)
 
         #plt.legend(handles=handles)
 
-        plt.tight_layout()
+        pretty.tight_layout()
 
         # auto tight_layout when resizing or pressing t
         def fix_layout(event):
             if (event.name == "key_press_event" and event.key == "t") or event.name == "resize_event":
-                plt.gcf().tight_layout()
-                plt.gcf().canvas.draw()
+                pretty.gcf().tight_layout()
+                pretty.gcf().canvas.draw()
 
-        plt.gcf().canvas.mpl_connect("key_press_event", fix_layout)
-        plt.gcf().canvas.mpl_connect("resize_event", fix_layout)
+        pretty.gcf().canvas.mpl_connect("key_press_event", fix_layout)
+        pretty.gcf().canvas.mpl_connect("resize_event", fix_layout)
 
-        return plt
+        return pretty
 
 def pretty_plot(width=8, height=None, plt=None, dpi=300, color_cycle=("qualitative", "Set1_9")):
     """
