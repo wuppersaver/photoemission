@@ -6,7 +6,7 @@ Created on Mon Jan 24 10:50:04 2022
 @author: brunocamino
 """
 
-from matplotlib.pyplot import plot, xlim
+from click import option
 import numpy as np
 import ase
 import re
@@ -92,15 +92,20 @@ def generate_qsub_file(**options):
     output.append(f"#PBS -N {options['seed_name']}\n")
     output.append(queues[options['queue']])
     output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
-    output.append(f"PRGM={programs[options['program']]}\n\n")
-    if options['bandstructure']:
-        output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
-        output.append(f"CASE_O2B={options['seed_name']}_o2b.out\n\n")
-    output.append(f"CASE_IN={options['seed_name']}\nCASE_OUT={options['seed_name']}.out\n\n")
-    output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
-    if options['bandstructure']:
-        output.append(f"cp {options['seed_name']}.bands {options['seed_name']}.bands.orig\n\n")
-        output.append("mpiexec $PRGMO2B $CASE_IN 2>&1 | tee $CASE_O2B\n")
+    output.append(f"PRGM={programs[options['castep_version']]}\n\n")
+    for task in options['tasks']:
+        if task == 'Bandstructure':
+            output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
+        if task in ['Bandstructure','SinglePoint','Spectral']:
+            output.append(f"CASE_IN={options['seed_name']}\nCASE_OUT={options['seed_name']}.out\n\n")
+            output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
+        if task == 'Bandstructure':
+            output.append(f"cp {options['seed_name']}.bands {options['seed_name']}.bands.orig\n\n")
+            output.append("mpiexec $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
+        if task == 'Optados':
+            output.append(f"OPTADOS={programs['optados']}\n\n")
+            output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT")
+        
     
     with open(f"./structures/{options['seed_name']}/{options['seed_name']}.qsub", 'w') as f:
         for line in output:
@@ -144,31 +149,31 @@ def generate_castep_input(calc_struct='hello', **options):
         
         # Define parameter file options
         calc.param.task = options['task']
+        if options['task'] == 'Spectral': 
+            calc.param.spectral_task = options['spectral_task']
+            if options['calculate_pdos']:
+                calc.param.pdos_calculate_weights = 'TRUE'
         calc.param.cut_off_energy = str(options['energy_cutoff']) + ' eV'
         calc.param.xc_functional = options['xc_functional']
         calc.param.opt_strategy = options['opt_strategy']
-        calc.param.fix_occupancy = options['fix_occup']
-        calc.param.spin_polarized = options['spin_polarized']
+        if options['fix_occup']: calc.param.fix_occupancy = 'TRUE'
+        if options['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
         calc.param.max_scf_cycles = options['max_scf_cycles']
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
-        if options['continuation']:
-            calc.param.continuation = 'Default'  
-        if options['write_potential']:
-            calc.param.write_formatted_potential = 'TRUE'
-        if options['write_density']:
-            calc.param.write_formatted_density = 'TRUE'
-        if options['extra_bands']:
-            calc.param.nextra_bands = options['number_extra_bands']
+        if options['continuation']: calc.param.continuation = 'Default'  
+        if options['write_potential']: calc.param.write_formatted_potential = 'TRUE'
+        if options['write_density']: calc.param.write_formatted_density = 'TRUE'
+        if options['extra_bands']: calc.param.nextra_bands = options['number_extra_bands']
         
         # Define cell file options
-        if options['snap_to_symmetry']:
-            calc.cell.snap_to_symmetry = 'TRUE'
+        if options['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
         if options['task'] == 'BandStructure':
             band_path = calc_struct.cell.bandpath(options['bandstruct_path'], density = options['bandstruct_kpt_dist'])
             calc.set_bandpath(bandpath=band_path)
             calc.cell.bs_kpoint_path_spacing = options['bandstruct_kpt_dist']
         calc.set_kpts(options['kpoints'])
-        calc.cell.fix_all_cell = options['fix_all_cell']
+        if options['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = f"{options['spectral_kpt_grid'][0]} {options['spectral_kpt_grid'][1]} {options['spectral_kpt_grid'][2]}"
+        if options['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
        
         
     # Prepare atoms and attach them to the current calculator
@@ -178,50 +183,36 @@ def generate_castep_input(calc_struct='hello', **options):
     calc_struct.calc.initialize()
     
     # The Cell file has to be modified to have the BS_Kpoint_Path in the right format for CASTEP
-    with open(f"./structures/{options['label']}/{options['label']}.cell", 'r') as f:
-        lines = f.readlines()
-    for i in range(len(lines)):
-        if 'BS_KPOINT_LIST:' in lines[i]:
-            path_list = list(lines[i].replace('BS_KPOINT_LIST: ', '').replace('[','').replace(']', '').replace("'", '').replace('\n','').split(', '))
-            path = '%BLOCK BS_KPOINT_PATH\n'
-            for point in path_list:
-                path += point + '\n'
-            path += '%ENDBLOCK BS_KPOINT_PATH\n'
-            lines[i] = path
-            break
-    with open(f"./structures/{options['label']}/{options['label']}.cell", 'w') as f:
-        for item in lines:
-            f.write(item)
+    if options['task'] == 'BandStructure':
+        with open(f"./structures/{options['label']}/{options['label']}.cell", 'r') as f:
+            lines = f.readlines()
+        for i in range(len(lines)):
+            if 'BS_KPOINT_LIST:' in lines[i]:
+                path_list = list(lines[i].replace('BS_KPOINT_LIST: ', '').replace('[','').replace(']', '').replace("'", '').replace('\n','').split(', '))
+                path = '%BLOCK BS_KPOINT_PATH\n'
+                for point in path_list:
+                    path += point + '\n'
+                path += '%ENDBLOCK BS_KPOINT_PATH\n'
+                lines[i] = path
+                break
+        with open(f"./structures/{options['label']}/{options['label']}.cell", 'w') as f:
+            for item in lines:
+                f.write(item)
 
     return;
 
-def write_bs_path(seed):
-    lines = []
-    path = ''
-    with open(f'./structures/{seed}/{seed}.cell', 'r') as f:
-        lines = f.readlines()
-    for i in range(len(lines)):
-        if 'BS_KPOINT_LIST:' in lines[i]:
-            #print(lines[i])
-            temp = lines[i].replace('BS_KPOINT_LIST: ', '').replace('[','').replace(']', '').replace("'", '').replace('\n','')
-            path_list = list(temp.split(', '))
-            print(path_list)
-            path = '%BLOCK BS_KPOINT_PATH\n'
-            for point in path_list:
-                path += point + '\n'
-            path += '%ENDBLOCK BS_KPOINT_PATH\n'
-            lines[i] = path
-            with open(f'./structures/{seed}/{seed}.bandpath', 'w') as f:
-                print('writing_bandpath_file')
-                f.write(path)
-            break
-    with open(f'./structures/{seed}/{seed}.cell', 'w') as f:
-        print('writing_cell_file')
-        for item in lines:
-            f.write(item)
+def generate_optados_input(options):
+    output = [f"task : {options['optados_task']}\n"]
+    output.append(f"broadening : {options['broadening']}\n")
+    output.append(f"iprint : {options['iprint']}\n")
+    output.append(f"efermi : {options['efermi']}\n")
+    output.append(f"dos_spacing : {str(options['dos_spacing'])}")
+    with open(f"./structures/{options['seed_name']}/{options['seed_name']}.odi", 'w') as f:
+        for line in output:
+            f.write(line)
     return;
 
-def get_wulff_fractions(mat_structure, facets_energies : dict):
+def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
     oh = SingleCrystal(facets_energies, mat_structure)
     fractions = oh.facet_fractions
     new = defaultdict(list)
@@ -403,12 +394,13 @@ def append_symm_line(base_bandstruct, line_to_add):
     
     return BandStructureSymmLine(kpoints, eigenvalues, base_bandstruct.lattice_rec, base_dict['efermi'], base_dict['labels_dict']);
 
-def plot_dos_optados(seed:str, shift_efermi:bool = False, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False):
+def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False):
     energies, up, down, total, max_value = [],[],[],[],[]
     up_total = 0
     down_total = 0
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    shift_efermi = True
     with open(f'./structures/{seed}/{seed}.adaptive.dat','r') as f:
         for line in f:
             line = line.strip()
@@ -427,6 +419,15 @@ def plot_dos_optados(seed:str, shift_efermi:bool = False, plot_up:bool = True, p
                 temp = next(o).strip().split()
                 efermi = float(temp[6])
                 break
+    with open(f"./structures/{seed}/{seed}.odi", "r") as i:
+        for line in i:
+            line = line.strip()
+            if 'SET_EFERMI_ZERO' in line:
+                temp = line.split()
+                if temp[2] == 'false':
+                    shift_efermi = False
+                break
+
     ax.set(xlim = [energies[0],energies[-1]], xlabel = 'Energy [eV]', ylabel = 'DOS', yticks = [], title = f'DOS Plot for {seed}')
     ax.axhline(0, c = 'gray')
     if plot_up:
