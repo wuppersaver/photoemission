@@ -24,7 +24,7 @@ from pymatgen.core import Lattice
 from pymatgen.core.structure import Structure
 from pymatgen.electronic_structure.bandstructure import BandStructureSymmLine
 from pymatgen.electronic_structure.core import Spin
-from pymatgen.electronic_structure.dos import Dos
+from pymatgen.electronic_structure.dos import Dos, CompleteDos
 from pymatgen.symmetry.kpath import KPathSetyawanCurtarolo
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
@@ -204,6 +204,9 @@ def generate_castep_input(calc_struct='hello', **options):
 
 def generate_optados_input(options):
     output = [f"task : {options['optados_task']}\n"]
+    for item in options['optados_task'].split():
+        if item in ['pdos', 'PDOS', 'pDOS', 'pDos']:
+            output.append(f"pdos : {options['pdos']}\n")
     output.append(f"broadening : {options['broadening']}\n")
     output.append(f"iprint : {options['iprint']}\n")
     output.append(f"efermi : {options['efermi']}\n")
@@ -461,16 +464,16 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     
     ax.legend()
     plt.tight_layout()
-    
+    total_density = {Spin.up : total}
     if export_json:
-        combined_densities =  {Spin.up : np.zeros((len(energies))), Spin.down : np.zeros((len(energies)))}
-        combined_densities[Spin.up][:] = up
-        combined_densities[Spin.down][:] = down
+        combined_densities =  {Spin.up : up, Spin.down : down}
         if shift_efermi: 
             output_dos = Dos(0, energies,combined_densities)
+            total_out = Dos(0, energies, total_density)
         else:
             output_dos = Dos(efermi, energies, combined_densities)
-        with open(f'./structures/jsons/DOS/{seed}.json', 'w') as f:
+            
+        with open(f'./structures/jsons/DOS/{seed}_total.json', 'w') as f:
             json.dump(output_dos.as_dict(), f)
     
     return fig,ax;
