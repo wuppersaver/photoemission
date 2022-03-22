@@ -24,6 +24,7 @@ from pymatgen.core import Lattice
 from pymatgen.core.structure import Structure
 from pymatgen.electronic_structure.bandstructure import BandStructureSymmLine
 from pymatgen.electronic_structure.core import Spin
+from pymatgen.electronic_structure.dos import Dos
 from pymatgen.symmetry.kpath import KPathSetyawanCurtarolo
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
@@ -394,7 +395,7 @@ def append_symm_line(base_bandstruct, line_to_add):
     
     return BandStructureSymmLine(kpoints, eigenvalues, base_bandstruct.lattice_rec, base_dict['efermi'], base_dict['labels_dict']);
 
-def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False):
+def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
     energies, up, down, total, max_value = [],[],[],[],[]
     up_total = 0
     down_total = 0
@@ -424,24 +425,27 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
             line = line.strip()
             if 'SET_EFERMI_ZERO' in line:
                 temp = line.split()
-                if temp[2] == 'false':
+                if temp[2] in ['false','FALSE','False','.false.']:
                     shift_efermi = False
                 break
 
     ax.set(xlim = [energies[0],energies[-1]], xlabel = 'Energy [eV]', ylabel = 'DOS', yticks = [], title = f'DOS Plot for {seed}')
     ax.axhline(0, c = 'gray')
+    
     if plot_up:
         max_value.append(max(up))
     if plot_down:
         max_value.append(max(down))
     if plot_total:
         max_value.append(max(total))
+    
     if shift_efermi:
         ax.axvline(0, c = '0', ls = '--', alpha = 0.8)
         energies = [item - efermi for item in energies]
         ax.set(xlabel = r'$\mathrm{Energy - E}_{f}$  [eV]', xlim = [energies[0],energies[-1]])
     else:
         ax.axvline(efermi, c = '0', ls = '--', label = 'Fermi Energy', alpha = 0.8)
+    
     if plot_up:
         ax.plot(energies, up, label = 'up')
     if plot_down:
@@ -449,9 +453,26 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
         ax.plot(energies, down_flip, label = 'down', alpha = 0.5)
     if plot_total:
         ax.plot(energies, total, label = 'total')
+    
     ax.set(ylim = [-0.02, max(max_value)+0.1])
+    
+    if xlimit != None:
+        ax.set(xlim = xlimit) 
+    
     ax.legend()
     plt.tight_layout()
+    
+    if export_json:
+        combined_densities =  {Spin.up : np.zeros((len(energies))), Spin.down : np.zeros((len(energies)))}
+        combined_densities[Spin.up][:] = up
+        combined_densities[Spin.down][:] = down
+        if shift_efermi: 
+            output_dos = Dos(0, energies,combined_densities)
+        else:
+            output_dos = Dos(efermi, energies, combined_densities)
+        with open(f'./structures/jsons/DOS/{seed}.json', 'w') as f:
+            json.dump(output_dos.as_dict(), f)
+    
     return fig,ax;
 
 #Everything below this is to plot bandstructure plots with functions adapted from the pymatgen module
