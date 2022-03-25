@@ -135,3 +135,5 @@ dmypy.json
 structures/
 .vscode/
 Plotting.ipynb
+# Markdown files
+*.md

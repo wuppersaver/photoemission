@@ -478,6 +478,52 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     
     return fig,ax;
 
+def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
+    energies= []
+    columns, projections = {}, {}
+    plt.style.use('seaborn-darkgrid')
+    #fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    shift_efermi = True
+    header_string = '#+----------------------------------------------------------------------------+'
+    header, values = [],[]
+    with open(f'./structures/{seed}/{seed}.pdos.dat','r') as f:
+        for line in f:
+            line_values = line.strip().split()
+            if '#' in line_values[0]:
+                header.append(line_values)
+            else:
+                values.append(line_values)
+    for i, item in enumerate(header):
+        if 'Column:' in item:
+            columns[item[2]] = []
+            t = i+2
+            while header_string not in header[t]:
+                columns[item[2]].append(header[t][1:-1])
+                t += 1
+    for key in columns.keys():
+        current = columns[key]
+        atom = ''
+        for item in current:
+            if atom != '':
+                atom += ','
+            atom += (f'{item[0]}{item[1]}')
+        orbital = current[0][2]
+        if atom not in projections.keys():projections[atom] = {}
+        if orbital not in projections[atom].keys():projections[atom][orbital] = {}   
+        if len(current[0])>3 and current[0][3] in ['Up','Down']: 
+            spin = current[0][3]
+            if spin not in projections[atom][orbital].keys(): projections[atom][orbital][spin] = []
+        columns[key] = [atom,orbital]
+        if len(current[0])>3:columns[key].append(spin)
+    for item in values:
+        item = [float(i) for i in item]
+        if not all(abs(elem) == item[1] for elem in item[1:]):
+            energies.append(item[0])
+            for i in range(len(item[1:])):
+                keys = columns[str(i+1)]
+                projections[keys[0]][keys[1]][keys[2]].append(float(item[i+1]))
+    
+
 #Everything below this is to plot bandstructure plots with functions adapted from the pymatgen module
 
 def get_bs_plot(
