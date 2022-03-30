@@ -6,6 +6,7 @@ Created on Mon Jan 24 10:50:04 2022
 @author: brunocamino
 """
 
+from ast import Index
 from click import option
 import numpy as np
 import ase
@@ -27,7 +28,7 @@ from pymatgen.electronic_structure.core import Spin
 from pymatgen.electronic_structure.dos import Dos, CompleteDos
 from pymatgen.symmetry.kpath import KPathSetyawanCurtarolo
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-
+from pymatgen.io.ase import AseAtomsAdaptor
 
 import matplotlib.lines as mlines
 import math
@@ -77,7 +78,7 @@ def generate_qsub_file(**options):
     
     # !!Queue Configurations are specific to Cluster!! SUBJECT TO CHANGE IN APRIL
     queues = {
-        'short': '#PBS -l select=1:ncpus=48:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
+        'short': '#PBS -l select=1:ncpus=24:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
         'debug': '#PBS -l select=1:ncpus=8:mem=90GB\n#PBS -l walltime=00:30:00\n\n'
     }
     # !!Programs are specific to Cluster and User!!
@@ -94,17 +95,18 @@ def generate_qsub_file(**options):
     output.append(queues[options['queue']])
     output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
     output.append(f"PRGM={programs[options['castep_version']]}\n\n")
-    for task in options['tasks']:
-        if task == 'Bandstructure':
+    for task in options['tasks_seeds']:
+        if task[0].lower()  == 'bandstructure':
             output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
-        if task in ['Bandstructure','SinglePoint','Spectral']:
-            output.append(f"CASE_IN={options['seed_name']}\nCASE_OUT={options['seed_name']}.out\n\n")
+        if task[0].lower()  in ['bandstructure','singlepoint','spectral']:
+            output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
             output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
-        if task == 'Bandstructure':
-            output.append(f"cp {options['seed_name']}.bands {options['seed_name']}.bands.orig\n\n")
+        if task[0].lower()   == 'bandstructure':
+            output.append(f"cp {task[1]}.bands {task[1]}.bands.orig\n\n")
             output.append("mpiexec $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
-        if task == 'Optados':
+        if task[0].lower()  == 'optados':
             output.append(f"OPTADOS={programs['optados']}\n\n")
+            output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
             output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT")
         
     
@@ -136,14 +138,17 @@ def generate_castep_input(calc_struct='hello', **options):
     #TODO  
     
     if not isinstance(calc_struct,ase.atoms.Atoms):
-        raise TypeError('An ASE Atoms object has to be given!')        
+        
+        calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
+
         
     # initialize the calculator instance
     calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
     # include interface settings in .param file
     calc._export_settings = False
-
+    
     if options:
+        print(options)
         calc._directory = options['directory']
         calc._rename_existing_dir = False
         calc._label = options['label']
@@ -482,7 +487,7 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
     energies= []
     columns, projections = {}, {}
     plt.style.use('seaborn-darkgrid')
-    #fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     shift_efermi = True
     header_string = '#+----------------------------------------------------------------------------+'
     header, values = [],[]
@@ -508,22 +513,79 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
                 atom += ','
             atom += (f'{item[0]}{item[1]}')
         orbital = current[0][2]
-        if atom not in projections.keys():projections[atom] = {}
-        if orbital not in projections[atom].keys():projections[atom][orbital] = {}   
-        if len(current[0])>3 and current[0][3] in ['Up','Down']: 
-            spin = current[0][3]
-            if spin not in projections[atom][orbital].keys(): projections[atom][orbital][spin] = []
+        if len(current[0])>3:
+            columns[key].append(spin)
+            if atom not in projections.keys():projections[atom] = {}
+            if orbital not in projections[atom].keys():projections[atom][orbital] = {}   
+            if len(current[0])>3 and current[0][3] in ['Up','Down']: 
+                spin = current[0][3]
+                if spin not in projections[atom][orbital].keys(): projections[atom][orbital][spin] = []
         columns[key] = [atom,orbital]
-        if len(current[0])>3:columns[key].append(spin)
+        if len(current[0])==3:
+            if atom not in projections.keys():projections[atom] = {}
+            if orbital not in projections[atom].keys():projections[atom][orbital] = []
     for item in values:
         item = [float(i) for i in item]
         if not all(abs(elem) == item[1] for elem in item[1:]):
             energies.append(item[0])
             for i in range(len(item[1:])):
                 keys = columns[str(i+1)]
-                projections[keys[0]][keys[1]][keys[2]].append(float(item[i+1]))
-    
+                if len(keys) > 2:
+                    projections[keys[0]][keys[1]][keys[2]].append(float(item[i+1]))
+                else:
+                    projections[keys[0]][keys[1]].append(float(item[i+1]))
 
+def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):   
+    layers = [i for i in range(min, max+1)]
+    castep_opt_template = {
+        'directory': f"./structures/{seed}/",
+        'label': seed,
+        # Param File Instructions
+        'task': 'Singlepoint', #Choose: SinglePoint, BandStructure, Spectral 
+        'xc_functional': 'PBE',
+        'energy_cutoff': 566,
+        'opt_strategy': 'Speed',
+        'fix_occup' : False,
+        'spin_polarized': False,
+        'max_scf_cycles': '100',
+        'write_potential': False,
+        'write_density': False,
+        'extra_bands': True,
+        'number_extra_bands': 20,
+        #Cell File Instructions
+        'kpoints': [9,9,9],
+    }
+    PBS_options = {
+        'seed_name': seed,
+        'tasks_seeds': [], #Choose one or multiple (carefully!): SinglePoint, BandStructure, Spectral, OptaDOS
+        'queue': 'short',
+        'castep_version': 'castep_19' #choose from castep_19, castep_18, castep_18_mod
+    }
+    for i in layers:
+        surface = ase.build.surface(lattice = structure, indices =indices, layers = i, vacuum=15, tol=1e-10, periodic=True)
+        temp_opt = castep_opt_template
+        temp_opt['directory'] = f"./structures/{seed}"
+        temp_opt['label'] = f"{seed}_{i}L"
+        temp_opt['kpoints'] = get_adjusted_kpts(structure, surface, [9,9,9])
+        PBS_options['tasks_seeds'].append(['singlepoint',temp_opt['label']])
+        if cutoff != None:
+            temp_opt['cutoff'] = cutoff
+        generate_castep_input(calc_struct=surface, **temp_opt)
+    generate_qsub_file(**PBS_options)
+    return;
+
+def get_adjusted_kpts(original, new, kpt = [1,1,1]):
+    orig_cell  = original.lattice
+    new_cell  = new.lattice
+    if not all(abs(new_cell.lengths[index] - elem) > 0.001 for index,elem in enumerate(orig_cell.lengths)):
+        warnings.warn(f'!WARNING! The two cells axes are not in good agreement, recheck the output!')
+        print('original\n',orig_cell)
+        print('new\n',new_cell)
+    new_k = [int(orig_cell.a//new_cell.a*kpt[0]), int(orig_cell.b//new_cell.b*kpt[1]),int(orig_cell.c//new_cell.c*kpt[2])]
+    for index, item in enumerate(new_k):
+        if item == 0:
+            new_k[index] = 1
+    return new_k;
 #Everything below this is to plot bandstructure plots with functions adapted from the pymatgen module
 
 def get_bs_plot(
