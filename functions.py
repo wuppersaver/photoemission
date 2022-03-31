@@ -30,8 +30,6 @@ from pymatgen.symmetry.kpath import KPathSetyawanCurtarolo
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.io.ase import AseAtomsAdaptor
 
-import matplotlib.lines as mlines
-import math
 import matplotlib.pyplot as plt
 
 def calc_surface_energy(bulk_energy,slab_energy,n_units, area):
@@ -47,24 +45,20 @@ def get_qe(optados_output):
     #This is for you to develop :)
     pass
 
-def get_energies(seed, different_path = False, path = ''):
-    lines = []
+def get_energies(seed, path = None):
     scf_lines = []
-    scf_energy = 0  
-    if different_path:
-        with open(f'./{path}{seed}/{seed}.castep','r') as f:
-                 lines = f.readlines()
-    else:
-        with open(f'./structures/{seed}/{seed}.castep','r') as f:
-                 lines = f.readlines()
-    for line in lines:
-        if '*Warning* max. SCF cycles performed' in line:
-            warnings.warn(f'!WARNING! The calculation in file {seed}.castep did not converge in the SCF cycle limit.')
-        if 'Final energy' in line:
-            scf_energy = float(re.findall(r"[-+]?(?:\d*\.\d+|\d+)",line)[0])
-        if '-- SCF' in line:
-            scf_lines.append(line)
-    fermi_energy = float(re.findall('-?\ *[0-9]+\.?[0-9]*(?:[Ee]\ *[-+]?\ *[0-9]+)?',scf_lines[-2])[2])
+    if path != None: file = f'{path}/{seed}/{seed}.castep'
+    else: file = f'./structures/{seed}/{seed}.castep'
+    with open(file,'r') as f:
+        for line in f:
+            line = line.strip()
+            if '*Warning* max. SCF cycles performed' in line:
+                warnings.warn(f'!WARNING! The calculation in file {seed}.castep did not converge in the SCF cycle limit.')
+            if 'Final energy' in line:
+                scf_energy = float(line.split()[4])
+            if '-- SCF' in line:
+                scf_lines.append(line)
+        fermi_energy = float(scf_lines[-2].split()[2])
     return scf_energy,fermi_energy
 
 def generate_qsub_file(**options):
