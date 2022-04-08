@@ -2,14 +2,14 @@ import warnings
 class CastepOutput:
     def __init__(self, path) -> None:
         scf_lines = []
-        self.is_converged = True
-
+        self.seed = path.split('/')[-1].split('.')[0]
         with open(path,'r') as f:
             for line in f:
                 line = line.strip()
                 if '*Warning* max. SCF cycles performed' in line:
                     warnings.warn(f'!WARNING! The calculation in file {path} did not converge in the SCF cycle limit.')
                     self.is_converged = False
+                else: self.is_converged = True
                 if 'Final energy' in line:
                     self.ks_total_energy = float(line.split()[4])
                 if 'Final free energy' in line:

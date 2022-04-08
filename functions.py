@@ -72,16 +72,18 @@ def generate_qsub_file(**options):
     
     # !!Queue Configurations are specific to Cluster!! SUBJECT TO CHANGE IN APRIL
     queues = {
-        'short': '#PBS -l select=1:ncpus=24:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
-        'debug': '#PBS -l select=1:ncpus=8:mem=90GB\n#PBS -l walltime=00:30:00\n\n'
+        'short_8_50': '#PBS -l select=1:ncpus=8:mem=50GB\n#PBS -l walltime=00:30:00\n\n',
+        'short_24_100': '#PBS -l select=1:ncpus=24:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
+        'short_48_100': '#PBS -l select=1:ncpus=48:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
+        
     }
     # !!Programs are specific to Cluster and User!!
     programs = {
-        'castep_19': '/rds/general/user/fcm19/home/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--mpi/castep.mpi',
-        'castep_18': '/rds/general/user/fcm19/home/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi',
-        'castep_18_mod' : '/rds/general/user/fcm19/home/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi',
-        'orbitals2bands': '/rds/general/user/fcm19/home/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/orbitals2bands',
-        'optados': '/rds/general/user/fcm19/home/modules_codes/optados/optados.x'
+        'castep_19':        '/rds/general/user/fcm19/home/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--mpi/castep.mpi',
+        'castep_18':        '/rds/general/user/fcm19/home/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi',
+        'castep_18_mod' :   '/rds/general/user/fcm19/home/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi',
+        'orbitals2bands':   '/rds/general/user/fcm19/home/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/orbitals2bands',
+        'optados':          '/rds/general/user/fcm19/home/modules_codes/optados/optados.x'
     }
     
     output = ["#!/bin/bash  --login\n"]
@@ -151,20 +153,22 @@ def generate_castep_input(calc_struct='hello', **options):
         calc.param.task = options['task']
         if options['task'] == 'Spectral': 
             calc.param.spectral_task = options['spectral_task']
-            if options['calculate_pdos']:
-                calc.param.pdos_calculate_weights = 'TRUE'
+            if options['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
         calc.param.cut_off_energy = str(options['energy_cutoff']) + ' eV'
+        calc.param.elec_energy_tol = str(options['elec_energy_tol']) + ' eV'
         calc.param.xc_functional = options['xc_functional']
         calc.param.opt_strategy = options['opt_strategy']
+        calc.param.smearing_width = str(options['smearing_width']) + ' K'
         if options['fix_occup']: calc.param.fix_occupancy = 'TRUE'
         if options['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
-        calc.param.max_scf_cycles = options['max_scf_cycles']
+        else: calc.param.spin_polarized = 'FALSE'
+        calc.param.max_scf_cycles = str(options['max_scf_cycles'])
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         if options['continuation']: calc.param.continuation = 'Default'  
         if options['write_potential']: calc.param.write_formatted_potential = 'TRUE'
         if options['write_density']: calc.param.write_formatted_density = 'TRUE'
-        if options['extra_bands']: calc.param.nextra_bands = options['number_extra_bands']
-        
+        if options['extra_bands']: calc.param.perc_extra_bands = '100'
+        if options['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = options['mixing_scheme']
         # Define cell file options
         if options['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
         if options['task'] == 'BandStructure':
@@ -174,7 +178,7 @@ def generate_castep_input(calc_struct='hello', **options):
         calc.set_kpts(options['kpoints'])
         if options['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = f"{options['spectral_kpt_grid'][0]} {options['spectral_kpt_grid'][1]} {options['spectral_kpt_grid'][2]}"
         if options['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
-       
+        if options['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
@@ -201,15 +205,29 @@ def generate_castep_input(calc_struct='hello', **options):
 
     return;
 
-def generate_optados_input(options):
+def generate_optados_input(options, **photo):
     output = [f"task : {options['optados_task']}\n"]
-    for item in options['optados_task'].split():
-        if item in ['pdos', 'PDOS', 'pDOS', 'pDos']:
+    if options['optados_task'].lower() != 'photoemission':
+        if options['optados_task'].lower() == 'pdos':
             output.append(f"pdos : {options['pdos']}\n")
-    output.append(f"broadening : {options['broadening']}\n")
-    output.append(f"iprint : {options['iprint']}\n")
-    output.append(f"efermi : {options['efermi']}\n")
-    output.append(f"dos_spacing : {str(options['dos_spacing'])}")
+        output.append(f"broadening : {options['broadening']}\n")
+        output.append(f"iprint : {options['iprint']}\n")
+        output.append(f"efermi : {options['efermi']}\n")
+        output.append(f"dos_spacing : {str(options['dos_spacing'])}")
+    else:
+        for item in photo.keys():
+            if item == 'optics_qdir':
+                output.append(f"{item} : {photo[item][0]} {photo[item][1]}{photo[item][2]}")
+                pass
+            if item == 'optics_intraband':
+                if photo[item]:
+                    output.append(f"{item} : TRUE")
+                pass
+            if item == 'hybrid_linear':
+                if photo[item]:
+                    output.append(f"{item} : TRUE")
+                pass
+            output.append(f"{item} : {photo[item]}")
     with open(f"./structures/{options['seed_name']}/{options['seed_name']}.odi", 'w') as f:
         for line in output:
             f.write(line)
@@ -333,7 +351,11 @@ def read_cell2pmg(path:str):
                     temp = next(f).strip().split()
                     for j in range(len(temp)):
                         cell[i,j] = float(temp[j])
-                
+                lattice_obj = Lattice(cell)
+            if '%BLOCK LATTICE_ABC' in line:
+                axes = [float(i) for i in next(f).strip().split()]
+                angles = [float(i) for i in next(f).strip().split()]
+                lattice_obj = Lattice.from_parameters(axes[0], axes[1], axes[2], angles[0], angles[1], angles[1])
             if '%BLOCK POSITIONS_ABS' in line:
                 while True:
                     temp = next(f).strip().split()
@@ -341,10 +363,18 @@ def read_cell2pmg(path:str):
                         break
                     species.append(temp[0])
                     coords.append([float(temp[1]),float(temp[2]),float(temp[3])])
+                cartesian = True
                 break
-                
-    lattice_obj = Lattice(cell)
-    return Structure(lattice_obj,species, coords);
+            if '%BLOCK POSITIONS_FRAC' in line:
+                while True:
+                    temp = next(f).strip().split()
+                    if temp[0] == '%ENDBLOCK':
+                        break
+                    species.append(temp[0])
+                    coords.append([float(temp[1]),float(temp[2]),float(temp[3])])
+                cartesian = False
+                break
+    return Structure(lattice_obj,species, coords, coords_are_cartesian= cartesian);
 
 def create_label_dict(kpath, kpts):
     k_paths = kpath.get_kpoints(line_density=1, coords_are_cartesian = False)
@@ -478,13 +508,13 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     return fig,ax;
 
 def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
-    energies= []
-    columns, projections = {}, {}
+    energies, total= [],[]
+    columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
-    shift_efermi = True
     header_string = '#+----------------------------------------------------------------------------+'
     header, values = [],[]
+    spin_channels = False
     with open(f'./structures/{seed}/{seed}.pdos.dat','r') as f:
         for line in f:
             line_values = line.strip().split()
@@ -499,35 +529,65 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
             while header_string not in header[t]:
                 columns[item[2]].append(header[t][1:-1])
                 t += 1
-    for key in columns.keys():
-        current = columns[key]
+    if len(columns['1'][0])>3: spin_channels = True
+    print(columns)
+    for key in columns.keys():                                                              # Go through each of the columns read in from the header
+        current = columns[key]                                                              # Load the array with the information for the current column, each Atom included has its own array (for example Cu1, Cu2)
         atom = ''
-        for item in current:
+        for item in current:                                                                # Generate string with atoms or sites included in column projector 
             if atom != '':
                 atom += ','
-            atom += (f'{item[0]}{item[1]}')
-        orbital = current[0][2]
-        if len(current[0])>3:
-            columns[key].append(spin)
-            if atom not in projections.keys():projections[atom] = {}
-            if orbital not in projections[atom].keys():projections[atom][orbital] = {}   
-            if len(current[0])>3 and current[0][3] in ['Up','Down']: 
+            atom += (f'{item[0]}{item[1]}') 
+        orbital = current[0][2]                                                             # Read in the orbital projection for this column
+        column_keys[key] = [atom,orbital]                                                   # Set the information for that generated column key with information on projector constituents and orbitals
+        if atom not in projections.keys():projections[atom] = {}
+        if spin_channels:                                                                   # If spin channel is included in the file, initialise initialise projections as {atom: { orbital1: { Spin1: [], ...} , ... } }                    # Initialise atom dict
+            if orbital not in projections[atom].keys():projections[atom][orbital] = {}      # Initialise orbital dict
+            if spin_channels and current[0][3] in ['Up','Down']: 
                 spin = current[0][3]
-                if spin not in projections[atom][orbital].keys(): projections[atom][orbital][spin] = []
-        columns[key] = [atom,orbital]
-        if len(current[0])==3:
-            if atom not in projections.keys():projections[atom] = {}
+                if spin not in projections[atom][orbital].keys(): 
+                    projections[atom][orbital][spin] = []                                   # initialise spin channel array
+                    column_keys[key].append(spin)                                           # Append pin channel to generated column key tuple
+        else:                                                                               # If no spin channel is included in the file, initialise projections as {atom: {orbital1: [], ... }}
             if orbital not in projections[atom].keys():projections[atom][orbital] = []
     for item in values:
         item = [float(i) for i in item]
         if not all(abs(elem) == item[1] for elem in item[1:]):
             energies.append(item[0])
+            temp_total, temp_up, temp_down = 0,0,0
             for i in range(len(item[1:])):
-                keys = columns[str(i+1)]
-                if len(keys) > 2:
-                    projections[keys[0]][keys[1]][keys[2]].append(float(item[i+1]))
+                keys = column_keys[str(i+1)]
+                if spin_channels:
+                    local_dos = float(item[i+1])
+                    projections[keys[0]][keys[1]][keys[2]].append(local_dos)
+                    if keys[2] == 'Down':
+                        temp_total += local_dos * -1
+                        temp_down += local_dos
+                    else:
+                        temp_total += local_dos
+                        temp_up += local_dos
                 else:
                     projections[keys[0]][keys[1]].append(float(item[i+1]))
+                    temp_total = temp_total + float(item[i+1])
+            total.append(temp_total)
+            totals[Spin.up].append(temp_up)
+            totals[Spin.down].append(temp_down)
+    if plot_total: ax.plot(energies, total, label = f"{atom}-total", alpha = 0.8,lw = 1)
+    for atom in projections.keys():
+        for orbital in projections[atom]:
+            if spin_channels:
+                if plot_up: 
+                    if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Up']): 
+                        ax.plot(energies, projections[atom][orbital]['Up'], label = f"{atom}-{orbital}-Up",alpha = 0.6, lw = 1)
+                if plot_down: 
+                    if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Down']): 
+                        ax.plot(energies, projections[atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
+            else:
+                if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]): ax.plot(energies, projections[atom][orbital], label = f"{atom}-{orbital}", alpha = 0.6,lw = 1)
+    if xlimit == None: ax.set(xlim = (min(energies),max(energies)))
+    else: ax.set(xlim = xlimit)
+    plt.legend()
+    return fig,ax;
 
 def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):   
     layers = [i for i in range(min, max+1)]
