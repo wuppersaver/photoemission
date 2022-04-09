@@ -13,6 +13,7 @@ import ase
 import re
 import warnings
 import json
+import os
 
 from wulffpack import SingleCrystal
 
@@ -29,6 +30,9 @@ from pymatgen.electronic_structure.dos import Dos, CompleteDos
 from pymatgen.symmetry.kpath import KPathSetyawanCurtarolo
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.io.ase import AseAtomsAdaptor
+from pymatgen.analysis.eos import EOS
+
+from output_class import *
 
 import matplotlib.pyplot as plt
 
@@ -693,6 +697,27 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
     PBS_options['tasks_seeds'] = inputs
     generate_qsub_file(**PBS_options)
     return;
+
+def read_murnaghan_outputs(seed:str, path = None):
+    '''
+    This function reads in the output files from a series of single point calculations\\ 
+    and tries to create a pymatgen murnaghan object. Returns this murnaghan object.
+    '''
+    # create array of the cell volumes, and total energies
+    energies, volumes, files = [],[],[]
+    if path == None:
+        path = f'./structures/{seed}/'
+    listOfFiles = os.listdir(path)
+     # create output classes for each of the output files
+    for item in listOfFiles:
+        if '.castep' in item and '.castep_bin' not in item:
+            output_temp = CastepOutput(path = path + item)
+            files.append(output_temp.seed)
+            energies.append(output_temp.ks_total_energy)
+            volumes.append(output_temp.structure.lattice.volume)
+    # create pymatgen EOS object with murnaghan
+    eos = EOS(eos_name='murnaghan')
+    return eos.fit(volumes, energies);
 
 def get_adjusted_kpts(original, new, kpt = [1,1,1]):
     orig_cell  = original.lattice
