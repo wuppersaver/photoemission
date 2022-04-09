@@ -583,10 +583,17 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
                     if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Down']): 
                         ax.plot(energies, projections[atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
             else:
-                if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]): ax.plot(energies, projections[atom][orbital], label = f"{atom}-{orbital}", alpha = 0.6,lw = 1)
+                if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]): 
+                    ax.plot(energies, projections[atom][orbital], label = f"{atom}-{orbital}", alpha = 0.6,lw = 1)
     if xlimit == None: ax.set(xlim = (min(energies),max(energies)))
     else: ax.set(xlim = xlimit)
     plt.legend()
+    if export_json:                                                             # Export currently gives errors due to inconsistencies within pymatgen DOS class                                                             
+        cell = read_cell2pmg(path = f"./structures/{seed}/{seed}.cell")
+        tot_dos = Dos(energies = energies, densities = totals,efermi = 0)
+        proj_dos = CompleteDos(cell, total_dos = tot_dos, pdoss = projections)
+        with open(f'./structures/jsons/DOS/{seed}.json', 'w') as f:
+            json.dump(proj_dos.as_dict(), f)
     return fig,ax;
 
 def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):   
@@ -625,6 +632,65 @@ def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):
         if cutoff != None:
             temp_opt['cutoff'] = cutoff
         generate_castep_input(calc_struct=surface, **temp_opt)
+    generate_qsub_file(**PBS_options)
+    return;
+
+def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, dir_path:str = None):
+    '''
+    This function takes in a pymatgen structure with a certain cell volume and creates the\\
+    input files to run the calculations.
+    '''
+    inputs = []
+    castep_options = {
+        'directory': f"./structures/{seed}",
+        'label': seed,
+        # Param File Instructions
+        'task': 'SinglePoint', #Choose: SinglePoint, BandStructure, Spectral
+        'spectral_task' : 'ALL', #Choose if task is Spectral: DOS, BandStructure, Optics, CoreLoss, All 
+        'calculate_pdos': True,
+        'xc_functional': 'PBEsol',
+        'energy_cutoff': 600,
+        'elec_energy_tol': 1e-8,
+        'opt_strategy': 'Speed',
+        'fix_occup' : False,
+        'mixing_scheme' : 'Pulay', #Choose from Broydon or Pulay
+        'smearing_width' : 300, # Smearing width given as a temperature in Kelvin (K)
+        'spin_polarized': False,
+        'max_scf_cycles': 1000,
+        'write_potential': True,
+        'write_density': True,
+        'extra_bands': True,
+        #Cell File Instructions
+        'kpoints': [32,32,1],
+        'snap_to_symmetry': False,
+        'generate_symmetry': True,
+        'fix_all_cell': True,
+        'continuation': False,
+    }
+    PBS_options = {
+        'seed_name': seed,
+        'tasks_seeds': [['Spectral', seed], ['Optados', seed]], #Choose one or multiple (carefully!): SinglePoint, BandStructure, Spectral, OptaDOS
+        'queue': 'short_8_50', # Choose from short_8_50,short_24_100, short_48_100
+        'castep_version': 'castep_19' #choose from castep_19, castep_18, castep_18_mod
+    }
+    # create input path
+    if dir_path == None:
+        dir_path = f'./structures/{seed}'
+    # write specific castep options
+    castep_options['energy_cutoff'] = cutoff
+    castep_options['kpoints'] = kpoints
+    castep_options['directory'] = dir_path
+    # create the linspace for volumes
+    scaling_factors = np.linspace(0.8,1.2,10)
+    # scale the given structure lattice and create the input files with the scaled lattices
+    for factor in scaling_factors:
+        factor = round(factor, 3)
+        new_struct = structure
+        new_struct.scale_lattice(factor)
+        castep_options['label'] = f'{seed}_{factor}'
+        generate_castep_input(new_struct, **castep_options)
+        inputs.append(['SinglePoint',f'{seed}_{factor}'])
+    PBS_options['tasks_seeds'] = inputs
     generate_qsub_file(**PBS_options)
     return;
 
