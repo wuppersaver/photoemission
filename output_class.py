@@ -1,8 +1,10 @@
 from pymatgen.core.structure import Structure
 import warnings
 class CastepOutput:
+    
     def __init__(self, path) -> None:
         scf_lines = []
+        self.path = path
         self.seed = path.split('/')[-1].split('.')[0]
         lattice = [[],[],[]]
         atoms,atom_coordinates = [],[]
@@ -37,3 +39,7 @@ class CastepOutput:
         self.structure = Structure(lattice, atoms, atom_coordinates, coords_are_cartesian= False)       
         self.fermi_energy = float(scf_lines[-2].split()[2])
         self.number_iterations = float(scf_lines[-2].split()[0])
+    
+    def create_bandstructure(self,):
+        
+        return;

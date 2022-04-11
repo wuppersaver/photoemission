@@ -148,7 +148,6 @@ def generate_castep_input(calc_struct='hello', **options):
     calc._export_settings = False
     
     if options:
-        print(options)
         calc._directory = options['directory']
         calc._rename_existing_dir = False
         calc._label = options['label']
@@ -639,7 +638,7 @@ def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):
     generate_qsub_file(**PBS_options)
     return;
 
-def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, dir_path:str = None):
+def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, dir_path:str = None, *min_max:tuple):
     '''
     This function takes in a pymatgen structure with a certain cell volume and creates the\\
     input files to run the calculations.
@@ -650,8 +649,6 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
         'label': seed,
         # Param File Instructions
         'task': 'SinglePoint', #Choose: SinglePoint, BandStructure, Spectral
-        'spectral_task' : 'ALL', #Choose if task is Spectral: DOS, BandStructure, Optics, CoreLoss, All 
-        'calculate_pdos': True,
         'xc_functional': 'PBEsol',
         'energy_cutoff': 600,
         'elec_energy_tol': 1e-8,
@@ -661,8 +658,8 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
         'smearing_width' : 300, # Smearing width given as a temperature in Kelvin (K)
         'spin_polarized': False,
         'max_scf_cycles': 1000,
-        'write_potential': True,
-        'write_density': True,
+        'write_potential': False,
+        'write_density': False,
         'extra_bands': True,
         #Cell File Instructions
         'kpoints': [32,32,1],
@@ -685,20 +682,23 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
     castep_options['kpoints'] = kpoints
     castep_options['directory'] = dir_path
     # create the linspace for volumes
-    scaling_factors = np.linspace(0.8,1.2,10)
+    if min_max: scaling_factors = np.linspace(min_max)
+    else: scaling_factors = np.linspace(0.95,1.05,10)
     # scale the given structure lattice and create the input files with the scaled lattices
+    initial_volume = structure.lattice.volume
+    new_struct = structure
     for factor in scaling_factors:
         factor = round(factor, 3)
-        new_struct = structure
-        new_struct.scale_lattice(factor)
-        castep_options['label'] = f'{seed}_{factor}'
+        factor_str = str(factor).replace('.','_')
+        new_struct.scale_lattice(initial_volume*factor)
+        castep_options['label'] = f'{seed}_{factor_str}'
         generate_castep_input(new_struct, **castep_options)
-        inputs.append(['SinglePoint',f'{seed}_{factor}'])
+        inputs.append(['SinglePoint',f'{seed}_{factor_str}'])
     PBS_options['tasks_seeds'] = inputs
     generate_qsub_file(**PBS_options)
     return;
 
-def read_murnaghan_outputs(seed:str, path = None):
+def read_murnaghan_outputs(seed:str, structure:Structure, path = None):
     '''
     This function reads in the output files from a series of single point calculations\\ 
     and tries to create a pymatgen murnaghan object. Returns this murnaghan object.
@@ -712,12 +712,18 @@ def read_murnaghan_outputs(seed:str, path = None):
     for item in listOfFiles:
         if '.castep' in item and '.castep_bin' not in item:
             output_temp = CastepOutput(path = path + item)
-            files.append(output_temp.seed)
+            files.append([output_temp.seed, output_temp.ks_total_energy, output_temp.structure.lattice.volume])
             energies.append(output_temp.ks_total_energy)
             volumes.append(output_temp.structure.lattice.volume)
     # create pymatgen EOS object with murnaghan
+    volumes_sort = np.sort(volumes)
+    print(energies, volumes, files)
     eos = EOS(eos_name='murnaghan')
-    return eos.fit(volumes, energies);
+    fit = eos.fit(volumes, energies)
+    v0 = fit.results['v0']
+    min_struct = structure
+    min_struct.scale_lattice(v0)
+    return fit, min_struct;
 
 def get_adjusted_kpts(original, new, kpt = [1,1,1]):
     orig_cell  = original.lattice
