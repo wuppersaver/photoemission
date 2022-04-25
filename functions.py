@@ -9,6 +9,7 @@ Created on Mon Jan 24 10:50:04 2022
 from ast import Index
 from click import option
 import numpy as np
+import subprocess
 import ase
 import re
 import warnings
@@ -74,7 +75,7 @@ def generate_qsub_file(**options):
     # bandstructure (bool) : boolean, if bandstructure calculation is performed, it triggers post-processing of *.bands file
     
     
-    # !!Queue Configurations are specific to Cluster!! SUBJECT TO CHANGE IN APRIL
+    # !!Queue Configurations are specific to Cluster!! SUBJECT TO CHANGE
     queues = {
         'short_8_50': '#PBS -l select=1:ncpus=8:mem=50GB\n#PBS -l walltime=00:30:00\n\n',
         'short_24_100': '#PBS -l select=1:ncpus=24:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
@@ -246,19 +247,28 @@ def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
             new[key].append(value)
     return new;
 
-def average_potential_from_file(input_file:str):
+def average_potential_from_file(input_file:str, potential = True):
+    if potential: factor = 27.211396
+    else: factor = 1
+    header = []
+    with open(input_file, 'r') as f:
+        while True:
+            line = next(f)
+            header.append(line.strip().split())
+            if 'END' in line:
+                break
 
-    spin = np.genfromtxt(input_file, skip_header=7, delimiter=None, invalid_raise=False)
+    spin_value = int(header[7][0])
     
-    spin_value = int(spin[0])
+    lengths = [float(x[5]) for x in header[3:6]]
+    lattice = list(map(lambda sub: list(map(float, sub)), [x[0:3] for x in header[3:6]])) 
+    cell = Lattice(lattice)
     
-    x_y_z = np.genfromtxt(input_file, delimiter=None, skip_header=8, invalid_raise=False)
-    #extracts x, y, z axes from slab and creates array
-    
-    number_of_points_per_plane = int(x_y_z[0]*x_y_z[1])*spin_value
+    number_of_points_per_plane = int(header[8][0])*int(header[8][1])*spin_value
     #gets number of points per plane in z-axis of slab
+    number_of_planes = int(header[8][2])+1
+    plane_distance = lengths[2]/number_of_planes
     
-    number_of_planes = int(x_y_z[2]+1)
     #needs '+1' since when used later to generate x-axis of graph np.arange() is exclusive of end of range
     
     data_array = np.genfromtxt(input_file, skip_header=11, delimiter=None)
@@ -272,17 +282,67 @@ def average_potential_from_file(input_file:str):
     
     mean_energy_of_plane = total_energy_of_each_plane / number_of_points_per_plane
     
-    x_axis = np.arange(1, number_of_planes)
-    y_axis = mean_energy_of_plane * 27.2114
+    x_axis = np.arange(1, number_of_planes, dtype=np.int16)
+    y_axis = mean_energy_of_plane * factor
     
     results = np.c_[x_axis,y_axis]
     #change file extension
     
-    file_name = input_file.split('.')
-    new_file = file_name[0]+'.dat'
+    file_name = input_file.split('/')
+    new_file = file_name[-1]+'.dat'
+    path = ''
+    for item in file_name[:-1]:
+        path += item + '/'
+    np.savetxt(f'{path}{new_file}',results,delimiter=' ')
+    return x_axis*plane_distance, y_axis, cell;
+
+def create_potential_plot(file_path:str, bounds = [0,5.4]):
+    x, potential,cell = average_potential_from_file(file_path, potential = True)
+    indices = [0,0]
+    for index, item in enumerate(x):
+        if abs(item - bounds[0]) < 0.05:
+            indices[0] = index
+        if abs(item - bounds[1]) < 0.05:
+            indices[1] = index
+        if item > (bounds[1]+0.2):
+            break
+    mean = np.mean(potential[indices[0]:indices[1]])
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     
-    np.savetxt(new_file,results,delimiter=' ')
-    return;
+    ax.hlines(mean, 0, max(x), ls = '--',colors = 'r', linewidth = 1)
+    ax.plot(x,potential,linewidth = 1, label = 'Potential')
+    ax.text(max(x)/2,max(potential)*0.6,f'vacuum level = {round(mean,5)} eV',ha='center')
+    
+    ax.set(xlim = (0,max(x)),xlabel = r'Position along c [$\AA$]', ylabel = 'potential [eV]')
+    ax.legend(loc='best')
+
+    return fig,ax;
+
+def create_density_plot(file_path:str):
+    x, density,cell = average_potential_from_file(file_path, potential = False)
+
+    area = cell.volume/cell.lengths[2]
+    rel_density = density / max(density)
+    boundaries = []
+    for index, item in enumerate(rel_density):
+        if abs(item-0.01) < 0.002:
+            boundaries.append(x[index])
+
+    slab_vol =(boundaries[1]-boundaries[0])*area 
+
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+
+    ax.plot(x,rel_density,marker = '+', label = 'charge density')
+    ax.vlines(boundaries,-0.1,1,colors='r', ls = '--', linewidth = 1, label= 'slab boundaries')
+    ax.text(max(x) - 12, 0.5, fr'Area = {round(area,5)} $\AA^2$')
+    ax.text(max(x) - 12, 0.4, fr'Slab Volume = {round(slab_vol,5)} $\AA^3$')
+    
+    ax.legend(loc = 'best')
+    #ax.set(xlim = (10,15),ylim = (-0.001,0.015))# max(rel_density)+0.05))
+    ax.set(xlim = (0,max(x)),ylim = (-0.1,max(rel_density)+0.05),xlabel = r'Position along c [$\AA$]', ylabel = 'scaled electronic density')
+    return fig,ax;
     
 def read_bands2pmg(seed:str, export = False):
     num_kpoints, num_spin_comps, num_electrons_up, num_electrons_down, num_bands, fermi_energy = 0,0,0,0,0,0
@@ -638,7 +698,7 @@ def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):
     generate_qsub_file(**PBS_options)
     return;
 
-def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, dir_path:str = None, *min_max:tuple):
+def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, dir_path:str = None, min_max:tuple=None):
     '''
     This function takes in a pymatgen structure with a certain cell volume and creates the\\
     input files to run the calculations.
@@ -649,7 +709,7 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
         'label': seed,
         # Param File Instructions
         'task': 'SinglePoint', #Choose: SinglePoint, BandStructure, Spectral
-        'xc_functional': 'PBEsol',
+        'xc_functional': 'PBE',
         'energy_cutoff': 600,
         'elec_energy_tol': 1e-8,
         'opt_strategy': 'Speed',
@@ -682,7 +742,7 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
     castep_options['kpoints'] = kpoints
     castep_options['directory'] = dir_path
     # create the linspace for volumes
-    if min_max: scaling_factors = np.linspace(min_max)
+    if min_max != None: scaling_factors = np.linspace(min_max[0],min_max[1],min_max[2])
     else: scaling_factors = np.linspace(0.95,1.05,10)
     # scale the given structure lattice and create the input files with the scaled lattices
     initial_volume = structure.lattice.volume
@@ -717,13 +777,12 @@ def read_murnaghan_outputs(seed:str, structure:Structure, path = None):
             volumes.append(output_temp.structure.lattice.volume)
     # create pymatgen EOS object with murnaghan
     volumes_sort = np.sort(volumes)
-    print(energies, volumes, files)
     eos = EOS(eos_name='murnaghan')
     fit = eos.fit(volumes, energies)
     v0 = fit.results['v0']
     min_struct = structure
     min_struct.scale_lattice(v0)
-    return fit, min_struct;
+    return fit, min_struct, energies, volumes;
 
 def get_adjusted_kpts(original, new, kpt = [1,1,1]):
     orig_cell  = original.lattice
