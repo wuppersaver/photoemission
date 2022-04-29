@@ -33,7 +33,7 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.eos import EOS
 
-from output_class import *
+from castep_output_class import *
 
 import matplotlib.pyplot as plt
 
@@ -80,7 +80,7 @@ def generate_qsub_file(**options):
         'short_8_50': '#PBS -l select=1:ncpus=8:mem=50GB\n#PBS -l walltime=00:30:00\n\n',
         'short_24_100': '#PBS -l select=1:ncpus=24:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
         'short_48_100': '#PBS -l select=1:ncpus=48:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
-        
+        'serial_100' : '#PBS -l select=1:ncpus=1:mem=100GB\n#PBS -l walltime=01:00:00\n\n',
     }
     # !!Programs are specific to Cluster and User!!
     programs = {
@@ -107,8 +107,9 @@ def generate_qsub_file(**options):
             output.append("mpiexec $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
         if task[0].lower()  == 'optados':
             output.append(f"OPTADOS={programs['optados']}\n\n")
-            output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
-            output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT")
+            if task[1] != options['seed_name']: output.append(f"CASE_IN={options['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
+            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
+            output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
         
     
     with open(f"./structures/{options['seed_name']}/{options['seed_name']}.qsub", 'w') as f:
@@ -158,21 +159,21 @@ def generate_castep_input(calc_struct='hello', **options):
         if options['task'] == 'Spectral': 
             calc.param.spectral_task = options['spectral_task']
             if options['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
-        calc.param.cut_off_energy = str(options['energy_cutoff']) + ' eV'
-        calc.param.elec_energy_tol = str(options['elec_energy_tol']) + ' eV'
         calc.param.xc_functional = options['xc_functional']
         calc.param.opt_strategy = options['opt_strategy']
         calc.param.smearing_width = str(options['smearing_width']) + ' K'
+        calc.param.cut_off_energy = str(options['energy_cutoff']) + ' eV'
+        calc.param.elec_energy_tol = str(options['elec_energy_tol']) + ' eV'
+        if options['extra_bands']: calc.param.perc_extra_bands = '100'
+        calc.param.max_scf_cycles = str(options['max_scf_cycles'])
         if options['fix_occup']: calc.param.fix_occupancy = 'TRUE'
         if options['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
         else: calc.param.spin_polarized = 'FALSE'
-        calc.param.max_scf_cycles = str(options['max_scf_cycles'])
-        calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
-        if options['continuation']: calc.param.continuation = 'Default'  
         if options['write_potential']: calc.param.write_formatted_potential = 'TRUE'
         if options['write_density']: calc.param.write_formatted_density = 'TRUE'
-        if options['extra_bands']: calc.param.perc_extra_bands = '100'
         if options['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = options['mixing_scheme']
+        if options['continuation']: calc.param.continuation = 'Default'  
+        calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         # Define cell file options
         if options['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
         if options['task'] == 'BandStructure':
@@ -209,7 +210,7 @@ def generate_castep_input(calc_struct='hello', **options):
 
     return;
 
-def generate_optados_input(options, **photo):
+def generate_optados_input(options,path = None, **photo):
     output = [f"task : {options['optados_task']}\n"]
     if options['optados_task'].lower() != 'photoemission':
         if options['optados_task'].lower() == 'pdos':
@@ -221,20 +222,25 @@ def generate_optados_input(options, **photo):
     else:
         for item in photo.keys():
             if item == 'optics_qdir':
-                output.append(f"{item} : {photo[item][0]} {photo[item][1]}{photo[item][2]}")
-                pass
+                output.append(f"{item} : {photo[item][0]} {photo[item][1]} {photo[item][2]}\n")
+                continue
             if item == 'optics_intraband':
                 if photo[item]:
-                    output.append(f"{item} : TRUE")
-                pass
+                    output.append(f"{item} : TRUE\n")
+                continue
             if item == 'hybrid_linear':
                 if photo[item]:
-                    output.append(f"{item} : TRUE")
-                pass
-            output.append(f"{item} : {photo[item]}")
-    with open(f"./structures/{options['seed_name']}/{options['seed_name']}.odi", 'w') as f:
-        for line in output:
-            f.write(line)
+                    output.append(f"{item} : TRUE\n")
+                continue
+            output.append(f"{item} : {photo[item]}\n")
+    if path == None:
+        with open(f"./structures/{options['seed_name']}/{options['seed_name']}.odi", 'w') as f:
+            for line in output:
+                f.write(line)
+    else:
+        with open(f"{path}.odi", 'w') as f:
+            for line in output:
+                f.write(line)
     return;
 
 def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
