@@ -23,12 +23,14 @@ class CastepOutput:
                     self.estimate_energy_0K = float(line.split()[6])
                 if '-- SCF' in line:
                     scf_lines.append(line)
+                # Read in the lattice and cell contents of the run       
                 if 'Real Lattice' in line:
                     for i in range(3):
                         temp = next(f).strip().split()
                         lattice[i] = [float(x) for x in temp[0:3]]
                 if 'Total number of ions in cell' in line:
                     num_atoms = int(line.split()[7])
+                    self.number_atoms = num_atoms
                 if 'Fractional coordinates of atoms' in line:
                     next(f)
                     next(f)
@@ -37,9 +39,10 @@ class CastepOutput:
                         atoms.append(line[1])
                         atom_coordinates.append([float(x) for x in line[3:6]])
         self.structure = Structure(lattice, atoms, atom_coordinates, coords_are_cartesian= False)       
-        self.fermi_energy = float(scf_lines[-2].split()[2])
-        self.number_iterations = float(scf_lines[-2].split()[0])
-    
+        if len(scf_lines) > 0:
+            self.fermi_energy = float(scf_lines[-2].split()[2])
+            self.number_iterations = float(scf_lines[-2].split()[0])
+        
     def create_bandstructure(self,):
         
         return;

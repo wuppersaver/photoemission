@@ -34,8 +34,10 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.eos import EOS
 
 from castep_output_class import *
+from optados_output_class import *
 
 import matplotlib.pyplot as plt
+
 
 def calc_surface_energy(bulk_energy,slab_energy,n_units, area):
     #bulk_energy (float): energy of the bulk
@@ -50,22 +52,6 @@ def get_qe(optados_output):
     #This is for you to develop :)
     pass
 
-def get_energies(seed, path = None):
-    scf_lines = []
-    if path != None: file = f'{path}/{seed}/{seed}.castep'
-    else: file = f'./structures/{seed}/{seed}.castep'
-    with open(file,'r') as f:
-        for line in f:
-            line = line.strip()
-            if '*Warning* max. SCF cycles performed' in line:
-                warnings.warn(f'!WARNING! The calculation in file {seed}.castep did not converge in the SCF cycle limit.')
-            if 'Final energy' in line:
-                scf_energy = float(line.split()[4])
-            if '-- SCF' in line:
-                scf_lines.append(line)
-        fermi_energy = float(scf_lines[-2].split()[2])
-    return scf_energy,fermi_energy
-
 def generate_qsub_file(**options):
     # IMPORTANT!!This function is very specific to the machine the generated file is intended for!
     
@@ -75,44 +61,41 @@ def generate_qsub_file(**options):
     # bandstructure (bool) : boolean, if bandstructure calculation is performed, it triggers post-processing of *.bands file
     
     
-    # !!Queue Configurations are specific to Cluster!! SUBJECT TO CHANGE
-    queues = {
-        'short_8_50': '#PBS -l select=1:ncpus=8:mem=50GB\n#PBS -l walltime=00:30:00\n\n',
-        'short_24_100': '#PBS -l select=1:ncpus=24:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
-        'short_48_100': '#PBS -l select=1:ncpus=48:mem=100GB\n#PBS -l walltime=02:00:00\n\n',
-        'serial_100' : '#PBS -l select=1:ncpus=1:mem=100GB\n#PBS -l walltime=01:00:00\n\n',
-    }
     # !!Programs are specific to Cluster and User!!
     programs = {
-        'castep_19':        '/rds/general/user/fcm19/home/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--mpi/castep.mpi',
-        'castep_18':        '/rds/general/user/fcm19/home/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi',
-        'castep_18_mod' :   '/rds/general/user/fcm19/home/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi',
-        'orbitals2bands':   '/rds/general/user/fcm19/home/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/orbitals2bands',
-        'optados':          '/rds/general/user/fcm19/home/modules_codes/optados/optados.x'
+        'castep_19':        '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--mpi/castep.mpi',
+        'castep_18':        '~/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi',
+        'castep_18_mod' :   '~/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi',
+        'orbitals2bands':   '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/orbitals2bands',
+        'optados':          '~/modules_codes/optados/optados.x',
+        'geom2xyz':         '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/geom2xyz'
     }
     
     output = ["#!/bin/bash  --login\n"]
-    output.append(f"#PBS -N {options['seed_name']}\n")
-    output.append(queues[options['queue']])
+    output.append(f"#PBS -N {options['pbs']['seed_name']}\n")
+    output.append(f"#PBS -l select={options['pbs']['nodes']}:ncpus={options['pbs']['cpus']}:mem={options['pbs']['memory']}GB\n#PBS -l walltime={options['pbs']['walltime']}\n\n")
     output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
-    output.append(f"PRGM={programs[options['castep_version']]}\n\n")
-    for task in options['tasks_seeds']:
+    for task in options['pbs']['tasks_seeds']:
         if task[0].lower()  == 'bandstructure':
             output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
-        if task[0].lower()  in ['bandstructure','singlepoint','spectral']:
-            output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
+        if task[0].lower()  in ['bandstructure','singlepoint','spectral','geometryoptimization']:
+            output.append(f"PRGM={programs[task[2]]}\n\n")
+            if 'mod' in task[2]: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_mod.out\n\n")
+            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
             output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
+        if task[0].lower == 'geometryoptimization':
+            output.append(f"{programs['geom2xyz']} {options['pbs']['seed_name']}\n")
         if task[0].lower()   == 'bandstructure':
             output.append(f"cp {task[1]}.bands {task[1]}.bands.orig\n\n")
-            output.append("mpiexec $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
+            output.append("$PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
         if task[0].lower()  == 'optados':
-            output.append(f"OPTADOS={programs['optados']}\n\n")
-            if task[1] != options['seed_name']: output.append(f"CASE_IN={options['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
-            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
-            output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
+            output.append(f"PRGM={programs[task[2]]}\n\n")
+            if task[1] != options['pbs']['seed_name']: output.append(f"CASE_IN={options['pbs']['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
+            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_od.out\n\n")
+            output.append(f"$PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
         
     
-    with open(f"./structures/{options['seed_name']}/{options['seed_name']}.qsub", 'w') as f:
+    with open(f"./structures/{options['pbs']['seed_name']}/{options['pbs']['seed_name']}.qsub", 'w') as f:
         for line in output:
             f.write(line)
     return    
@@ -137,53 +120,53 @@ def generate_castep_input(calc_struct='hello', **options):
     ##  fix_all_cell (str): boolean value, defines if all the cell parameters should stay fixed during a optimisation run
     ##  continuation (bool): determines if the calculation is a continuation from a previous calc
     
-    #TODO  
     
-    if not isinstance(calc_struct,ase.atoms.Atoms):
+    if not isinstance(calc_struct,ase.atoms.Atoms) and calc_struct != 'hello':
         
         calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
 
-        
+    #print(calc_struct)
     # initialize the calculator instance
     calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
     # include interface settings in .param file
     calc._export_settings = False
     
     if options:
-        calc._directory = options['directory']
+        calc._directory = options['castep']['directory']
         calc._rename_existing_dir = False
-        calc._label = options['label']
+        calc._label = options['castep']['seed_name']
         
         # Define parameter file options
-        calc.param.task = options['task']
-        if options['task'] == 'Spectral': 
-            calc.param.spectral_task = options['spectral_task']
-            if options['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
-        calc.param.xc_functional = options['xc_functional']
-        calc.param.opt_strategy = options['opt_strategy']
-        calc.param.smearing_width = str(options['smearing_width']) + ' K'
-        calc.param.cut_off_energy = str(options['energy_cutoff']) + ' eV'
-        calc.param.elec_energy_tol = str(options['elec_energy_tol']) + ' eV'
-        if options['extra_bands']: calc.param.perc_extra_bands = '100'
-        calc.param.max_scf_cycles = str(options['max_scf_cycles'])
-        if options['fix_occup']: calc.param.fix_occupancy = 'TRUE'
-        if options['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
+        calc.param.task = options['castep']['task']
+        if options['castep']['task'] == 'Spectral': 
+            calc.param.spectral_task = options['castep']['spectral_task']
+            if options['castep']['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
+        calc.param.xc_functional = options['castep']['xc_functional']
+        calc.param.opt_strategy = options['castep']['opt_strategy']
+        calc.param.smearing_width = str(options['castep']['smearing_width']) + ' K'
+        calc.param.cut_off_energy = str(options['castep']['energy_cutoff']) + ' eV'
+        calc.param.elec_energy_tol = str(options['castep']['elec_energy_tol']) + ' eV'
+        if options['castep']['extra_bands']: calc.param.perc_extra_bands = '100'
+        calc.param.max_scf_cycles = str(options['castep']['max_scf_cycles'])
+        if options['castep']['fix_occup']: calc.param.fix_occupancy = 'TRUE'
+        if options['castep']['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
         else: calc.param.spin_polarized = 'FALSE'
-        if options['write_potential']: calc.param.write_formatted_potential = 'TRUE'
-        if options['write_density']: calc.param.write_formatted_density = 'TRUE'
-        if options['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = options['mixing_scheme']
-        if options['continuation']: calc.param.continuation = 'Default'  
+        if options['castep']['write_potential']: calc.param.write_formatted_potential = 'TRUE'
+        if options['castep']['write_density']: calc.param.write_formatted_density = 'TRUE'
+        if options['castep']['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = options['castep']['mixing_scheme']
+        if options['castep']['continuation']: calc.param.continuation = 'Default'  
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         # Define cell file options
-        if options['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
-        if options['task'] == 'BandStructure':
-            band_path = calc_struct.cell.bandpath(options['bandstruct_path'], density = options['bandstruct_kpt_dist'])
+        if options['castep']['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
+        if options['castep']['task'] == 'BandStructure':
+            band_path = calc_struct.cell.bandpath(options['castep']['bandstruct_path'], density = options['castep']['bandstruct_kpt_dist'])
+            print(band_path)
             calc.set_bandpath(bandpath=band_path)
-            calc.cell.bs_kpoint_path_spacing = options['bandstruct_kpt_dist']
-        calc.set_kpts(options['kpoints'])
-        if options['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = f"{options['spectral_kpt_grid'][0]} {options['spectral_kpt_grid'][1]} {options['spectral_kpt_grid'][2]}"
-        if options['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
-        if options['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
+            calc.cell.bs_kpoint_path_spacing = options['castep']['bandstruct_kpt_dist']
+        calc.set_kpts(options['castep']['kpoints'])
+        if options['castep']['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = f"{options['castep']['spectral_kpt_grid'][0]} {options['castep']['spectral_kpt_grid'][1]} {options['castep']['spectral_kpt_grid'][2]}"
+        if options['castep']['task'].lower() == 'geometryoptimization' and options['castep']['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
+        if options['castep']['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
@@ -191,9 +174,16 @@ def generate_castep_input(calc_struct='hello', **options):
     #Create input files
     calc_struct.calc.initialize()
     
+    appendices = {
+        'geometryoptimization' : 'geom_opt',
+        'bandstructure' : 'bands',
+        'spectral' : 'spec',
+        'singlepoint' : 'sngl_pnt',
+    }
+    
     # The Cell file has to be modified to have the BS_Kpoint_Path in the right format for CASTEP
-    if options['task'] == 'BandStructure':
-        with open(f"./structures/{options['label']}/{options['label']}.cell", 'r') as f:
+    if options['castep']['task'] == 'BandStructure':
+        with open(f"{options['castep']['directory']}/{options['castep']['seed_name']}.cell", 'r') as f:
             lines = f.readlines()
         for i in range(len(lines)):
             if 'BS_KPOINT_LIST:' in lines[i]:
@@ -204,22 +194,25 @@ def generate_castep_input(calc_struct='hello', **options):
                 path += '%ENDBLOCK BS_KPOINT_PATH\n'
                 lines[i] = path
                 break
-        with open(f"./structures/{options['label']}/{options['label']}.cell", 'w') as f:
+        with open(f"{options['castep']['directory']}/{options['castep']['seed_name']}.cell", 'w') as f:
             for item in lines:
                 f.write(item)
-
+    #os.rename(f"{options['castep']['directory']}/{options['castep']['seed_name']}.cell")
+    
     return;
 
-def generate_optados_input(options,path = None, **photo):
-    output = [f"task : {options['optados_task']}\n"]
-    if options['optados_task'].lower() != 'photoemission':
-        if options['optados_task'].lower() == 'pdos':
-            output.append(f"pdos : {options['pdos']}\n")
-        output.append(f"broadening : {options['broadening']}\n")
-        output.append(f"iprint : {options['iprint']}\n")
-        output.append(f"efermi : {options['efermi']}\n")
-        output.append(f"dos_spacing : {str(options['dos_spacing'])}")
+def generate_optados_input(path = None,**options):
+    tasks = options['optados']['optados_task']
+    output = [f"task : {tasks}\n"]
+    if options['optados']['optados_task'] != 'photoemission':
+        if options['optados']['optados_task'].lower() in ['pdos','all']:
+            output.append(f"PDOS : {options['optados']['pdos']}\n")
+        output.append(f"broadening : {options['optados']['broadening']}\n")
+        output.append(f"iprint : {options['optados']['iprint']}\n")
+        output.append(f"efermi : {options['optados']['efermi']}\n")
+        output.append(f"dos_spacing : {str(options['optados']['dos_spacing'])}")
     else:
+        photo = options['optados']['photo_options']
         for item in photo.keys():
             if item == 'optics_qdir':
                 output.append(f"{item} : {photo[item][0]} {photo[item][1]} {photo[item][2]}\n")
@@ -234,7 +227,7 @@ def generate_optados_input(options,path = None, **photo):
                 continue
             output.append(f"{item} : {photo[item]}\n")
     if path == None:
-        with open(f"./structures/{options['seed_name']}/{options['seed_name']}.odi", 'w') as f:
+        with open(f"./structures/{options['optados']['seed_name']}/{options['optados']['seed_name']}.odi", 'w') as f:
             for line in output:
                 f.write(line)
     else:
@@ -305,21 +298,24 @@ def average_potential_from_file(input_file:str, potential = True):
 def create_potential_plot(file_path:str, bounds = [0,5.4]):
     x, potential,cell = average_potential_from_file(file_path, potential = True)
     indices = [0,0]
+    stepsize = x[1] - x[0]
+    fermi_level = OptaDOSOutput(file_path.replace('.pot_fmt','_fermi.odo')).fermi_e
+    #print(fermi_level.path)
+    seed = file_path.split('/')[-1].split('.')[0]
     for index, item in enumerate(x):
-        if abs(item - bounds[0]) < 0.05:
-            indices[0] = index
-        if abs(item - bounds[1]) < 0.05:
-            indices[1] = index
-        if item > (bounds[1]+0.2):
-            break
+        if abs(item - bounds[0]) <= stepsize: indices[0] = index
+        if abs(item - bounds[1]) <= stepsize: indices[1] = index
+        if item > (bounds[1]+3*stepsize): break
     mean = np.mean(potential[indices[0]:indices[1]])
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     
-    ax.hlines(mean, 0, max(x), ls = '--',colors = 'r', linewidth = 1)
+    ax.hlines(mean, 0, max(x), ls = '--',colors = 'r', linewidth = 1, label= 'Vacuum Level')
+    ax.hlines(fermi_level,0,max(x), ls = '--', colors = 'g', linewidth = 1, label='Fermi Energy')
     ax.plot(x,potential,linewidth = 1, label = 'Potential')
-    ax.text(max(x)/2,max(potential)*0.6,f'vacuum level = {round(mean,5)} eV',ha='center')
-    
+    ax.text(max(x)/2,mean-2,f'vacuum level = {round(mean,5)} eV',ha='center')
+    ax.text(max(x)/2,fermi_level - 2,f'fermi level = {round(fermi_level,5)} eV',ha='center')
+    ax.set_title(f'{seed} - Workfunction W = {round(mean-fermi_level,5)}')
     ax.set(xlim = (0,max(x)),xlabel = r'Position along c [$\AA$]', ylabel = 'potential [eV]')
     ax.legend(loc='best')
 
@@ -327,27 +323,28 @@ def create_potential_plot(file_path:str, bounds = [0,5.4]):
 
 def create_density_plot(file_path:str):
     x, density,cell = average_potential_from_file(file_path, potential = False)
-
-    area = cell.volume/cell.lengths[2]
+    seed = file_path.split('/')[-1].split('.')[-2]
+    area = np.linalg.norm(np.cross(cell.matrix[0],cell.matrix[1]))
     rel_density = density / max(density)
     boundaries = []
     for index, item in enumerate(rel_density):
         if abs(item-0.01) < 0.002:
             boundaries.append(x[index])
 
-    slab_vol =(boundaries[1]-boundaries[0])*area 
+    slab_vol =abs(boundaries[-1]-boundaries[0])*area*np.sin(np.deg2rad(cell.alpha))
 
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
 
     ax.plot(x,rel_density,marker = '+', label = 'charge density')
     ax.vlines(boundaries,-0.1,1,colors='r', ls = '--', linewidth = 1, label= 'slab boundaries')
-    ax.text(max(x) - 12, 0.5, fr'Area = {round(area,5)} $\AA^2$')
-    ax.text(max(x) - 12, 0.4, fr'Slab Volume = {round(slab_vol,5)} $\AA^3$')
-    
+    #ax.text(max(x) - 12, 0.5, fr'Area = {round(area,5)} $\AA^2$')
+    #ax.text(max(x) - 12, 0.4, fr'Slab Volume = {round(slab_vol,5)} $\AA^3$')
+    ax.set_title(fr'{seed} Area = {round(area,5)} $\AA^2$ - Slab Volume = {round(slab_vol,5)} $\AA^3$')
     ax.legend(loc = 'best')
     #ax.set(xlim = (10,15),ylim = (-0.001,0.015))# max(rel_density)+0.05))
     ax.set(xlim = (0,max(x)),ylim = (-0.1,max(rel_density)+0.05),xlabel = r'Position along c [$\AA$]', ylabel = 'scaled electronic density')
+    plt.tight_layout()
     return fig,ax;
     
 def read_bands2pmg(seed:str, export = False):
@@ -355,6 +352,7 @@ def read_bands2pmg(seed:str, export = False):
     kpts_coordinates = []
     eigenvalues = {}
     cell = []
+
     with open(f'./structures/{seed}/{seed}.bands','r') as f:
         for line in f:
             line = line.strip()
@@ -390,7 +388,6 @@ def read_bands2pmg(seed:str, export = False):
                     for i in range(num_bands):
                         eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
     kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'./structures/{seed}/{seed}.cell')).get_primitive_standard_structure()) #Should use the Setyawan-Curtarolo Convention
-    
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
     final_kpt_coordinates = np.zeros((num_kpoints+len(high_symm_indices)-2,3))
     final_eigenvalues = {Spin.up : np.zeros([num_bands, num_kpoints+len(high_symm_indices)-2])}
@@ -406,7 +403,7 @@ def read_bands2pmg(seed:str, export = False):
     if export:
         with open(f'./structures/band_jsons/{seed}.json', 'w') as f:
             json.dump(new_bandstruct.as_dict(), f)
-    return new_bandstruct
+    return new_bandstruct;
 
 def read_cell2pmg(path:str):
     cell = np.zeros((3,3))
@@ -424,7 +421,8 @@ def read_cell2pmg(path:str):
             if '%BLOCK LATTICE_ABC' in line:
                 axes = [float(i) for i in next(f).strip().split()]
                 angles = [float(i) for i in next(f).strip().split()]
-                lattice_obj = Lattice.from_parameters(axes[0], axes[1], axes[2], angles[0], angles[1], angles[1])
+                #print(axes,angles)
+                lattice_obj = Lattice.from_parameters(axes[0], axes[1], axes[2], angles[0], angles[1], angles[2])
             if '%BLOCK POSITIONS_ABS' in line:
                 while True:
                     temp = next(f).strip().split()
@@ -445,6 +443,37 @@ def read_cell2pmg(path:str):
                 break
     return Structure(lattice_obj,species, coords, coords_are_cartesian= cartesian);
 
+def read_geometry_traj_file(path:str = None, seed:str = None):
+    ''' This function reads in a castep geometry optimisation trajectory file (.geom) and returns a data dictionary with pymatgen objects, forces and total energies.
+    '''
+    if path == None:
+        if seed == None : raise ValueError('The seed must be specified!')
+        path = f'./structures/{seed}/' 
+    listOfFiles = os.listdir(path)
+    data = {}
+    for item in listOfFiles:
+        if '.geom' in item:
+            with open(path+item) as f:
+                for line in f:
+                    line = line.strip()
+                    if '<-- c' in line:
+                        step = int(line.split()[0])
+                        line = next(f).strip().split()
+                        lattice, data[step] = [], {'total energy' : float(line[0])*27.211386245,'enthalpy' : float(line[1])*27.211386245}
+                        for i in range(3): lattice.append([float(x)*0.529177 for x in next(f).strip().split()[0:3]])
+                        species, coordinates, line = [], [], next(f).strip()
+                        while '<-- R' in line:
+                            species.append(line.split()[0])
+                            coordinates.append([float(x)*0.529177 for x in line.split()[2:5]])
+                            line = next(f).strip()
+                        data[step]['structure'] = Structure(lattice, species, coordinates)
+                        line, forces = next(f).strip(), []
+                        while '<-- F' in line:
+                            forces.append([float(x)*51.421 for x in line.split()[2:5]])
+                            line = next(f).strip()
+                        data[step]['forces'] = forces
+    return data;
+
 def create_label_dict(kpath, kpts):
     k_paths = kpath.get_kpoints(line_density=1, coords_are_cartesian = False)
     naming_dict = {}
@@ -453,16 +482,14 @@ def create_label_dict(kpath, kpts):
     for i in range(len(k_paths[0])):
         if k_paths[1][i] != '':
             point = k_paths[1][i]
-            temp = [round(k_paths[0][i][0],3),round(k_paths[0][i][1],3),round(k_paths[0][i][2],3)]
-            for i in range(3):
-                if temp[i] == -0.0:
-                    temp[i] = 0.0
+            temp = [abs(round(k_paths[0][i][0],6)),abs(round(k_paths[0][i][1],6)),abs(round(k_paths[0][i][2],6))]
             naming_dict[point] = tuple(temp)
     for key in naming_dict.keys():
         labels[key] = []
     for i in range(len(kpts)):
         for key, val in naming_dict.items():
-            if np.array_equal(val,kpts[i]):
+            #print(kpts[i],key,val,np.allclose(val,kpts[i]))
+            if np.allclose(val,kpts[i]):
                 labels[key].append(i)
                 high_symm_indices.append(i)
     return naming_dict, high_symm_indices;
@@ -503,6 +530,7 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     shift_efermi = True
+
     with open(f'./structures/{seed}/{seed}.adaptive.dat','r') as f:
         for line in f:
             line = line.strip()
@@ -647,13 +675,15 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
             if spin_channels:
                 if plot_up: 
                     if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Up']): 
-                        ax.plot(energies, projections[atom][orbital]['Up'], label = f"{atom}-{orbital}-Up",alpha = 0.6, lw = 1)
+                        ax.plot(energies, projections[atom][orbital]['Up'], label = f"{columns[columns.keys()[0]]}-{columns[columns.keys()[-1]]}-{orbital}-Up",alpha = 0.6, lw = 1)
                 if plot_down: 
                     if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Down']): 
                         ax.plot(energies, projections[atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
             else:
+                keys = columns['1']
+                print(keys)
                 if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]): 
-                    ax.plot(energies, projections[atom][orbital], label = f"{atom}-{orbital}", alpha = 0.6,lw = 1)
+                    ax.plot(energies, projections[atom][orbital], label = f"{keys[0][0],keys[0][1]}-{keys[-1][0],keys[-1][1]}-{orbital}", alpha = 0.6,lw = 1)
     if xlimit == None: ax.set(xlim = (min(energies),max(energies)))
     else: ax.set(xlim = xlimit)
     plt.legend()
@@ -705,18 +735,22 @@ def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):
     return;
 
 def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, dir_path:str = None, min_max:tuple=None):
+    # TODO convert this function so that a bash script is created that uses for loops to loop through structures
     '''
     This function takes in a pymatgen structure with a certain cell volume and creates the\\
     input files to run the calculations.
     '''
+     # create input path
+    if dir_path == None:
+        dir_path = f'./structures/{seed}'
     inputs = []
     castep_options = {
-        'directory': f"./structures/{seed}",
+        'directory': dir_path,
         'label': seed,
         # Param File Instructions
         'task': 'SinglePoint', #Choose: SinglePoint, BandStructure, Spectral
         'xc_functional': 'PBE',
-        'energy_cutoff': 600,
+        'energy_cutoff': cutoff,
         'elec_energy_tol': 1e-8,
         'opt_strategy': 'Speed',
         'fix_occup' : False,
@@ -728,7 +762,7 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
         'write_density': False,
         'extra_bands': True,
         #Cell File Instructions
-        'kpoints': [32,32,1],
+        'kpoints': kpoints,
         'snap_to_symmetry': False,
         'generate_symmetry': True,
         'fix_all_cell': True,
@@ -740,9 +774,6 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
         'queue': 'short_8_50', # Choose from short_8_50,short_24_100, short_48_100
         'castep_version': 'castep_19' #choose from castep_19, castep_18, castep_18_mod
     }
-    # create input path
-    if dir_path == None:
-        dir_path = f'./structures/{seed}'
     # write specific castep options
     castep_options['energy_cutoff'] = cutoff
     castep_options['kpoints'] = kpoints
@@ -759,7 +790,7 @@ def create_murnaghan_inputs(seed:str, structure:Structure, cutoff:int, kpoints, 
         new_struct.scale_lattice(initial_volume*factor)
         castep_options['label'] = f'{seed}_{factor_str}'
         generate_castep_input(new_struct, **castep_options)
-        inputs.append(['SinglePoint',f'{seed}_{factor_str}'])
+        inputs.append(['SinglePoint',f'{seed}_{factor_str}','castep_18'])
     PBS_options['tasks_seeds'] = inputs
     generate_qsub_file(**PBS_options)
     return;
@@ -789,6 +820,131 @@ def read_murnaghan_outputs(seed:str, structure:Structure, path = None):
     min_struct = structure
     min_struct.scale_lattice(v0)
     return fit, min_struct, energies, volumes;
+
+def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=None, **photo_opts):
+    '''
+    This function takes in a pymatgen structure with a certain cell volume and creates the\\
+    input files to run the calculations.
+    '''
+    inputs = []
+    OptaDOS_options = {
+        'seed_name': seed,
+        'optados_task': 'photoemission', # Choose: dos(default), compare_dos, compare_jdos, jdos, pdos, optics, core, all, photoemission
+        'broadening': 'adaptive', #Choose: adaptive(default), fixed, linear
+        'iprint': '1', #Choose: 1 - bare minimum, 2 - with progress reports, 3 - fulld debug output
+        'efermi': 'optados', #Choose: optados - recalculate, file - read from CASTEP file, insulator - count filled bands, float - supplied by user
+        'dos_spacing': '0.001', #DOS spacing in unit (default: eV): default - 0.1
+        'pdos': 'angular' #Choose: angular, species_ang, species, sites or more detailed descriptions such as: 
+        #PDOS : sum:Si1-2(s) - sum of s-chnnls on 2 Si atms (1 proj), 
+        #PDOS : Si1;Si2(s) - DOS on Si atom 1 and DOS on s-channel of Si atom 2 (2 proj) 
+    }
+    #print(photo_opts)
+    OptaDOS_photoemission_opt= {
+        'work_function' : photo_opts['work_function'],
+        'surface_area' : photo_opts['surface_area'],
+        'slab_volume' : photo_opts['slab_volume'],
+        'elec_field' : photo_opts['elec_field'],
+        'imfp_const' : 19.0,
+        'JDOS_SPACING' : 0.1,
+        'JDOS_MAX_ENERGY' : 25,
+        'BROADENING' : 'linear',
+        'OPTICS_GEOM' : 'unpolar',
+        'optics_qdir' : photo_opts['optics_qdir'],
+        'photon_energy' : 21.2,
+        'linear_smearing' : 0.026,
+        'fixed_smearing' :  0.026,
+        'optics_intraband' : True,
+        'photo_model' : '3step',
+        'momentum' : 'crystal',
+        'hybrid_linear' : True,
+        'temp' : 300,
+        'theta_lower' : 59,
+        'theta_upper' : 61,
+    }
+   
+    for option in photo_opts.keys():
+        OptaDOS_photoemission_opt[option] = photo_opts[option]
+    # create input path
+    if dir_path == None:
+        dir_path = f'./structures/{seed}'
+    # create the linspace for photon energy sweep
+    if min_max != None: photon_energies = np.linspace(min_max[0],min_max[1],min_max[2])
+    else: photon_energies = np.linspace(OptaDOS_photoemission_opt['work_function']-1.5,OptaDOS_photoemission_opt['work_function']+1.5,10)
+    # go through the created photon energies and create the optados inputs
+    photon_energies = [round(x,5) for x in photon_energies]
+    energy_str = str(photon_energies[0]).replace('.','_')
+    OptaDOS_photoemission_opt['photon_energy'] = photon_energies[0]
+    generate_optados_input(OptaDOS_options, **OptaDOS_photoemission_opt)
+ 
+    programs = {'optados': '~/modules_codes/optados/optados.x'}
+    output = ["#!/bin/bash  --login\n"]
+    output.append(f"#PBS -N {OptaDOS_photoemission_opt['photo_model']}_{seed}\n")
+    output.append('#PBS -l select=1:ncpus=1:mem=150GB\n#PBS -l walltime=01:00:00\n\n')
+    output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
+    output.append(f"OPTADOS={programs['optados']}\n\n")
+    output.append(f"CASE_IN={seed}\n")
+    models = ''
+    for state in photo_opts['photo_model']:
+        if len(models) != 0: models.append(_)
+        models.append(state)
+        output.append(f"sed -i '17s/.*/photo_model : {state}/' {seed}.odi\n")
+        for energy in photon_energies:
+            energy_str = str(energy)
+            output.append(f"sed -i '12s/.*/photon_energy : {energy}/' {seed}.odi\n")
+            output.append(f"CASE_OUT={seed + '_' + energy_str}_{state}.out\n")
+            output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
+            output.append(f"mv {seed}.odo {seed + '_' + energy_str}_{state}.odo\n\n")
+        
+    with open(f"./structures/{seed}/{seed}" + f"_odsweep_{min_max[0]}-{min_max[1]}_{models}.qsub", 'w') as f:
+        for line in output:
+            f.write(line)
+    return;
+
+def read_photonsweep_outputs(seed:str, path = None):
+    '''
+    This function reads in the output files from a series of optados calculations
+    '''
+    # create array of the cell volumes, and total energies
+    data = {} 
+
+    if path == None:
+        path = f'./structures/{seed}/'
+    listOfFiles = os.listdir(path)
+     # create output classes for each of the output files
+    #print(listOfFiles)
+    for item in listOfFiles:
+        if '.odo' in item:
+            #print(item)
+            out_obj = OptaDOSOutput(path + item)
+            if hasattr(out_obj,'final_state'):
+                if out_obj.final_state not in data.keys(): data[out_obj.final_state] = [[out_obj.photon_e,out_obj.qe,out_obj.mte]]
+                else: data[out_obj.final_state].append([out_obj.photon_e,out_obj.qe,out_obj.mte])
+                data['workfct'] = out_obj.work_fct
+    for item in data.keys():
+        if item != 'workfct':
+            data[item] = np.array(data[item])
+            data[item] = data[item][data[item][:,0].argsort()]
+    return data;
+
+def make_photonsweep_plots(data:dict,**options):
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,2, figsize = (14,6), dpi = 300)
+    if len(data['bloch']) == len(data['free electron']):
+        data['mean'] = 0.5*data['bloch']+0.5*data['free electron']
+    else: print(f"# of Bloch final state files:{len(data['bloch'])}\n # of Free electron final state files:{len(data['free electron'])}")
+    for item in data.keys():
+        if item in ['bloch', 'free electron', 'mean']:
+            ax[0].plot(data[item][:,0],data[item][:,1], marker = '+', label = f"{item} ({options['temperature']} K)")
+            ax[1].plot(data[item][:,0],[x*1000 for x in data[item][:,2]], marker = '+', label =  f"{item} ({options['temperature']} K)")
+    
+    ax[0].axvline(data['workfct'], ls = '--', c = 'red', label = 'workfunction')
+    ax[1].axvline(data['workfct'], ls = '--', c = 'red', label = 'workfunction')
+    ax[0].set(xlabel = 'photon energy [eV]', ylabel = 'Quantum efficiency', title = f"{options['title']} quantum efficiency", yscale='log', ylim = [1e-10, 1e-2])
+    ax[1].set(xlabel = 'photon energy [eV]', ylabel = 'Mean Transverse Energy (MTE) [meV]', title = f"{options['title']} MTE")
+    ax[0].legend()
+    ax[1].legend()
+    plt.tight_layout()
+    return fig,ax;
 
 def get_adjusted_kpts(original, new, kpt = [1,1,1]):
     orig_cell  = original.lattice
