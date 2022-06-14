@@ -30,7 +30,8 @@ class OptaDOSOutput:
                 if 'Electronic Data' in line:
                     self.num_bands = int(next(f).strip().split()[5])
                     temp = next(f).strip().split()
-                    self.k_grid = [int(temp[4]),int(temp[6]),int(temp[8])]
+                    if '***' not in temp:    
+                        self.k_grid = [int(temp[4]),int(temp[6]),int(temp[8])]
                     self.num_kpts = int(next(f).strip().split()[5])
                     if 'True' in next(f).strip(): self.spin_polarised = True
                     else: self.spin_polarised = False

@@ -16,7 +16,7 @@ import warnings
 import json
 import os
 
-from wulffpack import SingleCrystal
+#from wulffpack import SingleCrystal
 
 from collections import defaultdict
 
