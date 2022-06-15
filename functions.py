@@ -345,6 +345,7 @@ def create_density_plot(file_path:str):
     #ax.set(xlim = (10,15),ylim = (-0.001,0.015))# max(rel_density)+0.05))
     ax.set(xlim = (0,max(x)),ylim = (-0.1,max(rel_density)+0.05),xlabel = r'Position along c [$\AA$]', ylabel = 'scaled electronic density')
     plt.tight_layout()
+    print(round(slab_vol,5))
     return fig,ax;
     
 def read_bands2pmg(seed:str, export = False):
