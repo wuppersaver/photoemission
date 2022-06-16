@@ -605,7 +605,7 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     
     return fig,ax;
 
-def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
+def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False, path:str=None):
     energies, total= [],[]
     columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
     plt.style.use('seaborn-darkgrid')
@@ -613,13 +613,28 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
     header_string = '#+----------------------------------------------------------------------------+'
     header, values = [],[]
     spin_channels = False
-    with open(f'./structures/{seed}/{seed}.pdos.dat','r') as f:
-        for line in f:
-            line_values = line.strip().split()
-            if '#' in line_values[0]:
-                header.append(line_values)
-            else:
-                values.append(line_values)
+    shifted_efermi = False
+    if path == None:
+        path = f'./structures/{seed}/'
+    listOfFiles = os.listdir(path)
+     # create output classes for each of the output files
+    for item in listOfFiles:
+        if '_fermi.odo' in item:
+            with open(path + item,'r') as g:
+                for line in g:
+                    if 'Shift energy scale so fermi_energy=0' in line: shifted_efermi = bool(line.split()[7]=='True')
+                    if 'Projected Density Of States Calculation' in line:
+                        for i in range(6): line = next(g)
+                        if 'Fermi energy' in line: efermi = float(line.split()[6])
+                        else: print('No fermi energy found, check cursor position!')
+        if '.pdos.dat' in item:
+            with open(path+item,'r') as f:
+                for line in f:
+                    line_values = line.strip().split()
+                    if '#' in line_values[0]:
+                        header.append(line_values)
+                    else:
+                        values.append(line_values)
     for i, item in enumerate(header):
         if 'Column:' in item:
             columns[item[2]] = []
@@ -651,7 +666,8 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
     for item in values:
         item = [float(i) for i in item]
         if not all(abs(elem) == item[1] for elem in item[1:]):
-            energies.append(item[0])
+            if not shifted_efermi: energies.append(item[0]-efermi)
+            else: energies.append(item[0])
             temp_total, temp_up, temp_down = 0,0,0
             for i in range(len(item[1:])):
                 keys = column_keys[str(i+1)]
