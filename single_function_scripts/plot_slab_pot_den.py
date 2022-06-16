@@ -110,10 +110,10 @@ def create_density_plot(file_path:str):
 
 seed = 'Cu_surf_111'
 
-fig,ax = create_density_plot(file_path=f'../structures/{seed}/{seed}.den_fmt')
+fig,ax = create_density_plot(file_path=f'../structures/{seed}_vic_larger_cell/{seed}.den_fmt')
 plt.tight_layout()
 plt.savefig(f'../structures/plots/{seed}_victor_large_16L_potential_plot.png')
 
-fig,ax = create_potential_plot(file_path=f'../structures/{seed}/{seed}.pot_fmt', bounds= [25,27])
+fig,ax = create_potential_plot(file_path=f'../structures/{seed}_vic_larger_cell/{seed}.pot_fmt', bounds= [25,27])
 plt.tight_layout()
 plt.savefig(f'../structures/plots/{seed}_victor_large_cell_16L_potential_plot.png')

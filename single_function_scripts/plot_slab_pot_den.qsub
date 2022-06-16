@@ -1,12 +1,12 @@
 #!/bin/bash  --login
-#PBS -N Cu_surf_111
-#PBS -l select=1:ncpus=1:mem=10GB
+#PBS -N den_pot_plot
+#PBS -l select=1:ncpus=4:mem=20GB
 #PBS -l walltime=01:00:00
 
 cd $PBS_O_WORKDIR
 
 module load anaconda3/personal
 
-conda activate matchem
+source activate matchem
 
 python plot_slab_pot_den.py
