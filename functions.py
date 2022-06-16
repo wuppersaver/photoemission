@@ -15,8 +15,9 @@ import re
 import warnings
 import json
 import os
+import math
 
-#from wulffpack import SingleCrystal
+from wulffpack import SingleCrystal
 
 from collections import defaultdict
 
@@ -295,44 +296,72 @@ def average_potential_from_file(input_file:str, potential = True):
     np.savetxt(f'{path}{new_file}',results,delimiter=' ')
     return x_axis*plane_distance, y_axis, cell;
 
-def create_potential_plot(file_path:str, bounds = [0,5.4]):
-    x, potential,cell = average_potential_from_file(file_path, potential = True)
+def create_potential_plot(directory:str=None, bounds = None,centered:bool = True):
+    if directory == None:
+        directory = f'./structures/' 
+    if directory[-1] != '/': directory += '/'
+    listOfFiles = os.listdir(directory)
+    found = 2
+    for item in listOfFiles:
+        if '.pot_fmt' in item and not '.dat' in item:
+            found = 1
+            path = directory + item
+            x, potential,cell = average_potential_from_file(path, potential = True)
+        if '_fermi.odo' in item:   
+            odo_pth = directory + item
+            fermi_level = OptaDOSOutput(odo_pth).fermi_e
+            found = 0
+    if found != 0: 
+        file = ['Opatdos File (_fermi.odo)','Potential File (.pot_fmt)']
+        raise OSError(2, f'No {file[found-1]} found!')
     indices = [0,0]
     stepsize = x[1] - x[0]
-    fermi_level = OptaDOSOutput(file_path.replace('.pot_fmt','_fermi.odo')).fermi_e
+    if not centered and bounds == None: bounds = [int(x[-1]/2)-1,int(x[-1]/2)+1]
+    if centered and bounds == None: bounds =[0,5]
     #print(fermi_level.path)
-    seed = file_path.split('/')[-1].split('.')[0]
+    seed = path.split('/')[-1].split('.')[0]
     for index, item in enumerate(x):
         if abs(item - bounds[0]) <= stepsize: indices[0] = index
         if abs(item - bounds[1]) <= stepsize: indices[1] = index
         if item > (bounds[1]+3*stepsize): break
-    mean = np.mean(potential[indices[0]:indices[1]])
+    vacuum_level = np.mean(potential[indices[0]:indices[1]])
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     
-    ax.hlines(mean, 0, max(x), ls = '--',colors = 'r', linewidth = 1, label= 'Vacuum Level')
+    ax.hlines(vacuum_level, 0, max(x), ls = '--',colors = 'r', linewidth = 1, label= 'Vacuum Level')
     ax.hlines(fermi_level,0,max(x), ls = '--', colors = 'g', linewidth = 1, label='Fermi Energy')
+    ax.vlines(bounds,vacuum_level-1, vacuum_level+1,colors = 'k',linewidth = 1, label = 'bounds')
     ax.plot(x,potential,linewidth = 1, label = 'Potential')
-    ax.text(max(x)/2,mean-2,f'vacuum level = {round(mean,5)} eV',ha='center')
+    ax.text(max(x)/2,vacuum_level-2,f'vacuum level = {round(vacuum_level,5)} eV',ha='center')
     ax.text(max(x)/2,fermi_level - 2,f'fermi level = {round(fermi_level,5)} eV',ha='center')
-    ax.set_title(f'{seed} - Workfunction W = {round(mean-fermi_level,5)}')
+    ax.set_title(f'{seed} - Workfunction W = {round(vacuum_level-fermi_level,5)}')
     ax.set(xlim = (0,max(x)),xlabel = r'Position along c [$\AA$]', ylabel = 'potential [eV]')
     ax.legend(loc='best')
 
     return fig,ax;
 
-def create_density_plot(file_path:str):
-    x, density,cell = average_potential_from_file(file_path, potential = False)
-    seed = file_path.split('/')[-1].split('.')[-2]
+def create_density_plot(directory:str==None, centered:bool = True):
+    if directory == None:
+        directory = f'./structures/' 
+    if directory[-1] != '/': directory += '/'
+    listOfFiles = os.listdir(directory)
+    found = False
+    for item in listOfFiles:
+        if '.den_fmt' in item:
+            path = directory + item
+            x, density,cell = average_potential_from_file(path, potential = False)
+            found = True
+    if not found: raise OSError(2, 'No Density File (.den_fmt) found!')
+    seed = path.split('/')[-1].split('.')[-2]
     area = np.linalg.norm(np.cross(cell.matrix[0],cell.matrix[1]))
     rel_density = density / max(density)
     boundaries = []
-    for index, item in enumerate(rel_density):
-        if abs(item-0.01) < 0.002:
+    for index, item in enumerate(rel_density):        
+        if math.isclose(item,0.01, abs_tol=2e-3):
             boundaries.append(x[index])
 
     slab_vol =abs(boundaries[-1]-boundaries[0])*area*np.sin(np.deg2rad(cell.alpha))
-
+    if not centered: slab_vol = area*np.linalg.norm(cell.matrix[2]) - slab_vol
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
 
