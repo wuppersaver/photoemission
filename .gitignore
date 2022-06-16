@@ -137,3 +137,5 @@ structures/
 # Markdown files
 *.md
 test.ipynb
+*.e*
+*.o*
