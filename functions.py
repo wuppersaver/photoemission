@@ -628,7 +628,7 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
                 columns[item[2]].append(header[t][1:-1])
                 t += 1
     if len(columns['1'][0])>3: spin_channels = True
-    print(columns)
+    #print(columns)
     for key in columns.keys():                                                              # Go through each of the columns read in from the header
         current = columns[key]                                                              # Load the array with the information for the current column, each Atom included has its own array (for example Cu1, Cu2)
         atom = ''
@@ -886,7 +886,7 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
     output.append(f"CASE_IN={seed}\n")
     models = ''
     for state in photo_opts['photo_model']:
-        if len(models) != 0: models.append(_)
+        if len(models) != 0: models.append('_')
         models.append(state)
         output.append(f"sed -i '17s/.*/photo_model : {state}/' {seed}.odi\n")
         for energy in photon_energies:
