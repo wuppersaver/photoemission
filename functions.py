@@ -872,7 +872,6 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
     This function takes in a pymatgen structure with a certain cell volume and creates the\\
     input files to run the calculations.
     '''
-    inputs = []
     OptaDOS_options = {
         'seed_name': seed,
         'optados_task': 'photoemission', # Choose: dos(default), compare_dos, compare_jdos, jdos, pdos, optics, core, all, photoemission
@@ -880,10 +879,10 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
         'iprint': '1', #Choose: 1 - bare minimum, 2 - with progress reports, 3 - fulld debug output
         'efermi': 'optados', #Choose: optados - recalculate, file - read from CASTEP file, insulator - count filled bands, float - supplied by user
         'dos_spacing': '0.001', #DOS spacing in unit (default: eV): default - 0.1
-        'pdos': 'angular' #Choose: angular, species_ang, species, sites or more detailed descriptions such as: 
+        'pdos': 'angular', #Choose: angular, species_ang, species, sites or more detailed descriptions such as: 
         #PDOS : sum:Si1-2(s) - sum of s-chnnls on 2 Si atms (1 proj), 
         #PDOS : Si1;Si2(s) - DOS on Si atom 1 and DOS on s-channel of Si atom 2 (2 proj) 
-        'photo_options'= {
+        'photo_options' : {
             'work_function' : photo_opts['work_function'],
             'surface_area' : photo_opts['surface_area'],
             'slab_volume' : photo_opts['slab_volume'],
@@ -906,14 +905,12 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
             'theta_upper' : 61,
         }
     }
-    for option in photo_opts.keys():
-        OptaDOS_options['photo_options'][option] = photo_opts[option]
     # create input path
     if dir_path == None:
         dir_path = f'./structures/{seed}'
     # create the linspace for photon energy sweep
     if min_max != None: photon_energies = np.linspace(min_max[0],min_max[1],min_max[2])
-    else: photon_energies = np.linspace(OptaDOS_photoemission_opt['work_function']-1.5,OptaDOS_photoemission_opt['work_function']+1.5,10)
+    else: photon_energies = np.linspace(OptaDOS_options['photo_options']['work_function']-1.5,OptaDOS_options['photo_options']['work_function']+1.5,10)
     # go through the created photon energies and create the optados inputs
     photon_energies = [round(x,5) for x in photon_energies]
     options = {'optados':OptaDOS_options}
@@ -921,30 +918,30 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
  
     programs = {'optados': '~/modules_codes/optados/optados.x'}
     output = ["#!/bin/bash  --login\n"]
-    output.append(f"#PBS -N {OptaDOS_photoemission_opt['photo_model']}_{seed}\n")
+    output.append(f"#PBS -N {seed}_od_sweep\n")
     output.append('#PBS -l select=1:ncpus=1:mem=50GB\n#PBS -l walltime=02:30:00\n\n')
-    output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
+    output.append("cd $PBS_O_WORKDIR\n\n")
     output.append(f"OPTADOS={programs['optados']}\n\n")
     output.append(f"CASE_IN={seed}\n\n")
     
-    energies='(' 
+    energies='energies=(' 
     for energy in photon_energies[:-1]:energies += str(energy) + ' '
-    energies += str(photon_energies[-1]) + ')'
+    energies += str(photon_energies[-1]) + ')\n\n'
     output.append(energies)
     
-    output.append("cp ${{CASE_IN}}_photo.odi ${{CASE_IN}}.odi\n\n)
+    output.append(f"cp ${{CASE_IN}}_photo.odi ${{CASE_IN}}.odi\n\n")
 
     for state in photo_opts['photo_model']:
         output.append(f"sed -i 's/.*photo_model.*/photo_model : {state}/' ${{CASE_IN}}.odi\n\
-        CASE_OUT=${{CASE_IN}}_{state}.out\n\n")
+CASE_OUT=${{CASE_IN}}_{state}.out\n\n")
         output.append(f"for i in ${{energies[@]}}\n\
-        do\n\
-        sed -i \"s/.*photon_energy.*/photon_energy : $i/\" ${{CASE_IN}}.odi\n\
-        $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT \n\
-        mv ${{CASE_IN}}.odo ${{CASE_IN}}_${i}_{state}.odo\n\
-        done\n\n\n")
+do\n\
+    sed -i \"s/.*photon_energy.*/photon_energy : $i/\" ${{CASE_IN}}.odi\n\
+    $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT \n\
+    mv ${{CASE_IN}}.odo ${{CASE_IN}}_${{i}}_{state}.odo\n\
+done\n\n")
         
-    with open(f"./structures/{seed}/{seed}" + f"_odsweep_{min_max[0]}-{min_max[1]}_{models}.qsub", 'w') as f:
+    with open(f"./structures/{seed}/" + f"OptaDOS_sweep_{min_max[0]}-{min_max[1]}.qsub", 'w') as f:
         for line in output:
             f.write(line)
     return;
