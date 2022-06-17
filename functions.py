@@ -883,33 +883,31 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
         'pdos': 'angular' #Choose: angular, species_ang, species, sites or more detailed descriptions such as: 
         #PDOS : sum:Si1-2(s) - sum of s-chnnls on 2 Si atms (1 proj), 
         #PDOS : Si1;Si2(s) - DOS on Si atom 1 and DOS on s-channel of Si atom 2 (2 proj) 
+        'photo_options'= {
+            'work_function' : photo_opts['work_function'],
+            'surface_area' : photo_opts['surface_area'],
+            'slab_volume' : photo_opts['slab_volume'],
+            'elec_field' : photo_opts['elec_field'],
+            'imfp_const' : 19.0,
+            'JDOS_SPACING' : 0.1,
+            'JDOS_MAX_ENERGY' : 25,
+            'BROADENING' : 'linear',
+            'OPTICS_GEOM' : 'unpolar',
+            'optics_qdir' : photo_opts['optics_qdir'],
+            'photon_energy' : 21.2,
+            'linear_smearing' : 0.026,
+            'fixed_smearing' :  0.026,
+            'optics_intraband' : True,
+            'photo_model' : '3step',
+            'momentum' : 'crystal',
+            'hybrid_linear' : True,
+            'temp' : 300,
+            'theta_lower' : 59,
+            'theta_upper' : 61,
+        }
     }
-    #print(photo_opts)
-    OptaDOS_photoemission_opt= {
-        'work_function' : photo_opts['work_function'],
-        'surface_area' : photo_opts['surface_area'],
-        'slab_volume' : photo_opts['slab_volume'],
-        'elec_field' : photo_opts['elec_field'],
-        'imfp_const' : 19.0,
-        'JDOS_SPACING' : 0.1,
-        'JDOS_MAX_ENERGY' : 25,
-        'BROADENING' : 'linear',
-        'OPTICS_GEOM' : 'unpolar',
-        'optics_qdir' : photo_opts['optics_qdir'],
-        'photon_energy' : 21.2,
-        'linear_smearing' : 0.026,
-        'fixed_smearing' :  0.026,
-        'optics_intraband' : True,
-        'photo_model' : '3step',
-        'momentum' : 'crystal',
-        'hybrid_linear' : True,
-        'temp' : 300,
-        'theta_lower' : 59,
-        'theta_upper' : 61,
-    }
-   
     for option in photo_opts.keys():
-        OptaDOS_photoemission_opt[option] = photo_opts[option]
+        OptaDOS_options['photo_options'][option] = photo_opts[option]
     # create input path
     if dir_path == None:
         dir_path = f'./structures/{seed}'
@@ -918,28 +916,33 @@ def optados_photon_energy_sweep(seed:str, dir_path:str = None, min_max:tuple=Non
     else: photon_energies = np.linspace(OptaDOS_photoemission_opt['work_function']-1.5,OptaDOS_photoemission_opt['work_function']+1.5,10)
     # go through the created photon energies and create the optados inputs
     photon_energies = [round(x,5) for x in photon_energies]
-    energy_str = str(photon_energies[0]).replace('.','_')
-    OptaDOS_photoemission_opt['photon_energy'] = photon_energies[0]
-    generate_optados_input(OptaDOS_options, **OptaDOS_photoemission_opt)
+    options = {'optados':OptaDOS_options}
+    generate_optados_input(**options)
  
     programs = {'optados': '~/modules_codes/optados/optados.x'}
     output = ["#!/bin/bash  --login\n"]
     output.append(f"#PBS -N {OptaDOS_photoemission_opt['photo_model']}_{seed}\n")
-    output.append('#PBS -l select=1:ncpus=1:mem=150GB\n#PBS -l walltime=01:00:00\n\n')
+    output.append('#PBS -l select=1:ncpus=1:mem=50GB\n#PBS -l walltime=02:30:00\n\n')
     output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
     output.append(f"OPTADOS={programs['optados']}\n\n")
-    output.append(f"CASE_IN={seed}\n")
-    models = ''
+    output.append(f"CASE_IN={seed}\n\n")
+    
+    energies='(' 
+    for energy in photon_energies[:-1]:energies += str(energy) + ' '
+    energies += str(photon_energies[-1]) + ')'
+    output.append(energies)
+    
+    output.append("cp ${{CASE_IN}}_photo.odi ${{CASE_IN}}.odi\n\n)
+
     for state in photo_opts['photo_model']:
-        if len(models) != 0: models.append('_')
-        models.append(state)
-        output.append(f"sed -i '17s/.*/photo_model : {state}/' {seed}.odi\n")
-        for energy in photon_energies:
-            energy_str = str(energy)
-            output.append(f"sed -i '12s/.*/photon_energy : {energy}/' {seed}.odi\n")
-            output.append(f"CASE_OUT={seed + '_' + energy_str}_{state}.out\n")
-            output.append(f"mpiexec $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT\n")
-            output.append(f"mv {seed}.odo {seed + '_' + energy_str}_{state}.odo\n\n")
+        output.append(f"sed -i 's/.*photo_model.*/photo_model : {state}/' ${{CASE_IN}}.odi\n\
+        CASE_OUT=${{CASE_IN}}_{state}.out\n\n")
+        output.append(f"for i in ${{energies[@]}}\n\
+        do\n\
+        sed -i \"s/.*photon_energy.*/photon_energy : $i/\" ${{CASE_IN}}.odi\n\
+        $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT \n\
+        mv ${{CASE_IN}}.odo ${{CASE_IN}}_${i}_{state}.odo\n\
+        done\n\n\n")
         
     with open(f"./structures/{seed}/{seed}" + f"_odsweep_{min_max[0]}-{min_max[1]}_{models}.qsub", 'w') as f:
         for line in output:
