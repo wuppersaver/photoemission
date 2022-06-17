@@ -53,6 +53,12 @@ def get_qe(optados_output):
     #This is for you to develop :)
     pass
 
+def generate_input_files(calc_struct = None,**options):
+    general = options['general']
+    for task in general['tasks']:
+        print(task)
+    return
+
 def generate_qsub_file(**options):
     # IMPORTANT!!This function is very specific to the machine the generated file is intended for!
     
@@ -71,12 +77,14 @@ def generate_qsub_file(**options):
         'optados':          '~/modules_codes/optados/optados.x',
         'geom2xyz':         '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/geom2xyz'
     }
-    
+    pbs = options['pbs']
+
     output = ["#!/bin/bash  --login\n"]
-    output.append(f"#PBS -N {options['pbs']['seed_name']}\n")
-    output.append(f"#PBS -l select={options['pbs']['nodes']}:ncpus={options['pbs']['cpus']}:mem={options['pbs']['memory']}GB\n#PBS -l walltime={options['pbs']['walltime']}\n\n")
+    output.append(f"#PBS -N {pbs['seed_name']}\n")
+    output.append(f"#PBS -l select={pbs['nodes']}:ncpus={pbs['cpus']}:mem={pbs['memory']}GB\n#PBS -l walltime={pbs['walltime']}\n\n")
     output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
-    for task in options['pbs']['tasks_seeds']:
+    
+    for task in pbs['tasks_seeds']:
         if task[0].lower()  == 'bandstructure':
             output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
         if task[0].lower()  in ['bandstructure','singlepoint','spectral','geometryoptimization']:
@@ -85,18 +93,17 @@ def generate_qsub_file(**options):
             else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
             output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
         if task[0].lower == 'geometryoptimization':
-            output.append(f"{programs['geom2xyz']} {options['pbs']['seed_name']}\n")
+            output.append(f"{programs['geom2xyz']} {pbs['seed_name']}\n")
         if task[0].lower()   == 'bandstructure':
             output.append(f"cp {task[1]}.bands {task[1]}.bands.orig\n\n")
             output.append("$PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
         if task[0].lower()  == 'optados':
             output.append(f"PRGM={programs[task[2]]}\n\n")
-            if task[1] != options['pbs']['seed_name']: output.append(f"CASE_IN={options['pbs']['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
+            if task[1] != pbs['seed_name']: output.append(f"CASE_IN={pbs['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
             else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_od.out\n\n")
             output.append(f"$PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
         
-    
-    with open(f"./structures/{options['pbs']['seed_name']}/{options['pbs']['seed_name']}.qsub", 'w') as f:
+    with open(f"./structures/{pbs['seed_name']}/{pbs['seed_name']}.qsub", 'w') as f:
         for line in output:
             f.write(line)
     return    
@@ -125,7 +132,7 @@ def generate_castep_input(calc_struct='hello', **options):
     if not isinstance(calc_struct,ase.atoms.Atoms) and calc_struct != 'hello':
         
         calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
-
+    castep = options['castep']
     #print(calc_struct)
     # initialize the calculator instance
     calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
@@ -133,41 +140,41 @@ def generate_castep_input(calc_struct='hello', **options):
     calc._export_settings = False
     
     if options:
-        calc._directory = options['castep']['directory']
+        calc._directory = castep['directory']
         calc._rename_existing_dir = False
-        calc._label = options['castep']['seed_name']
+        calc._label = castep['seed_name']
         
         # Define parameter file options
-        calc.param.task = options['castep']['task']
-        if options['castep']['task'] == 'Spectral': 
-            calc.param.spectral_task = options['castep']['spectral_task']
-            if options['castep']['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
-        calc.param.xc_functional = options['castep']['xc_functional']
-        calc.param.opt_strategy = options['castep']['opt_strategy']
-        calc.param.smearing_width = str(options['castep']['smearing_width']) + ' K'
-        calc.param.cut_off_energy = str(options['castep']['energy_cutoff']) + ' eV'
-        calc.param.elec_energy_tol = str(options['castep']['elec_energy_tol']) + ' eV'
-        if options['castep']['extra_bands']: calc.param.perc_extra_bands = '100'
-        calc.param.max_scf_cycles = str(options['castep']['max_scf_cycles'])
-        if options['castep']['fix_occup']: calc.param.fix_occupancy = 'TRUE'
-        if options['castep']['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
+        calc.param.task = castep['task']
+        if castep['task'] == 'Spectral': 
+            calc.param.spectral_task = castep['spectral_task']
+            if castep['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
+        calc.param.xc_functional = castep['xc_functional']
+        calc.param.opt_strategy = castep['opt_strategy']
+        calc.param.smearing_width = str(castep['smearing_width']) + ' K'
+        calc.param.cut_off_energy = str(castep['energy_cutoff']) + ' eV'
+        calc.param.elec_energy_tol = str(castep['elec_energy_tol']) + ' eV'
+        if castep['extra_bands']: calc.param.perc_extra_bands = '100'
+        calc.param.max_scf_cycles = str(castep['max_scf_cycles'])
+        if castep['fix_occup']: calc.param.fix_occupancy = 'TRUE'
+        if castep['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
         else: calc.param.spin_polarized = 'FALSE'
-        if options['castep']['write_potential']: calc.param.write_formatted_potential = 'TRUE'
-        if options['castep']['write_density']: calc.param.write_formatted_density = 'TRUE'
-        if options['castep']['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = options['castep']['mixing_scheme']
-        if options['castep']['continuation']: calc.param.continuation = 'Default'  
+        if castep['write_potential']: calc.param.write_formatted_potential = 'TRUE'
+        if castep['write_density']: calc.param.write_formatted_density = 'TRUE'
+        if castep['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = castep['mixing_scheme']
+        if castep['continuation']: calc.param.continuation = 'Default'  
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         # Define cell file options
-        if options['castep']['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
-        if options['castep']['task'] == 'BandStructure':
-            band_path = calc_struct.cell.bandpath(options['castep']['bandstruct_path'], density = options['castep']['bandstruct_kpt_dist'])
+        if castep['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
+        if castep['task'] == 'BandStructure':
+            band_path = calc_struct.cell.bandpath(castep['bandstruct_path'], density = castep['bandstruct_kpt_dist'])
             print(band_path)
             calc.set_bandpath(bandpath=band_path)
-            calc.cell.bs_kpoint_path_spacing = options['castep']['bandstruct_kpt_dist']
-        calc.set_kpts(options['castep']['kpoints'])
-        if options['castep']['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = f"{options['castep']['spectral_kpt_grid'][0]} {options['castep']['spectral_kpt_grid'][1]} {options['castep']['spectral_kpt_grid'][2]}"
-        if options['castep']['task'].lower() == 'geometryoptimization' and options['castep']['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
-        if options['castep']['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
+            calc.cell.bs_kpoint_path_spacing = castep['bandstruct_kpt_dist']
+        calc.set_kpts(castep['kpoints'])
+        if castep['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']]) 
+        if castep['task'].lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
+        if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
@@ -175,16 +182,9 @@ def generate_castep_input(calc_struct='hello', **options):
     #Create input files
     calc_struct.calc.initialize()
     
-    appendices = {
-        'geometryoptimization' : 'geom_opt',
-        'bandstructure' : 'bands',
-        'spectral' : 'spec',
-        'singlepoint' : 'sngl_pnt',
-    }
-    
     # The Cell file has to be modified to have the BS_Kpoint_Path in the right format for CASTEP
-    if options['castep']['task'] == 'BandStructure':
-        with open(f"{options['castep']['directory']}/{options['castep']['seed_name']}.cell", 'r') as f:
+    if castep['task'] == 'BandStructure':
+        with open(f"{castep['directory']}/{castep['seed_name']}.cell", 'r') as f:
             lines = f.readlines()
         for i in range(len(lines)):
             if 'BS_KPOINT_LIST:' in lines[i]:
@@ -195,10 +195,16 @@ def generate_castep_input(calc_struct='hello', **options):
                 path += '%ENDBLOCK BS_KPOINT_PATH\n'
                 lines[i] = path
                 break
-        with open(f"{options['castep']['directory']}/{options['castep']['seed_name']}.cell", 'w') as f:
+        with open(f"{castep['directory']}/{castep['seed_name']}.cell", 'w') as f:
             for item in lines:
                 f.write(item)
-    #os.rename(f"{options['castep']['directory']}/{options['castep']['seed_name']}.cell")
+    appendices = {
+        'geometryoptimization' : 'geom_opt',
+        'bandstructure' : 'bands',
+        'spectral' : 'spec',
+        'singlepoint' : 'sngl_pnt',
+    }    
+    for file in ['cell','param']: os.rename(f"{castep['directory']}/{castep['seed_name']}.{file}",f"{castep['directory']}/{castep['seed_name']}_{appendices[castep['task'].lower()]}.{file}")
     
     return;
 
@@ -227,12 +233,18 @@ def generate_optados_input(path = None,**options):
                     output.append(f"{item} : TRUE\n")
                 continue
             output.append(f"{item} : {photo[item]}\n")
+    appendices = {
+        'all' : 'all',
+        'photoemission' : 'photo',
+        'pdos': 'pdos',
+        'dos': 'dos',
+    } 
     if path == None:
-        with open(f"./structures/{options['optados']['seed_name']}/{options['optados']['seed_name']}.odi", 'w') as f:
+        with open(f"./structures/{options['optados']['seed_name']}/{options['optados']['seed_name']}_{appendices[tasks.lower()]}.odi", 'w') as f:
             for line in output:
-                f.write(line)
+                f.write(line)  
     else:
-        with open(f"{path}.odi", 'w') as f:
+        with open(f"{path}_{appendices[tasks.lower()]}.odi", 'w') as f:
             for line in output:
                 f.write(line)
     return;
