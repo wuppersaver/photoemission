@@ -17,7 +17,7 @@ import json
 import os
 import math
 
-from wulffpack import SingleCrystal
+#from wulffpack import SingleCrystal
 
 from collections import defaultdict
 
@@ -308,7 +308,7 @@ def average_potential_from_file(input_file:str, potential = True):
     np.savetxt(f'{path}{new_file}',results,delimiter=' ')
     return x_axis*plane_distance, y_axis, cell;
 
-def create_potential_plot(directory:str=None, bounds = None,centered:bool = True):
+def create_potential_plot(directory:str=None, bounds = None,centered:bool = True,mod_odi:bool = True):
     if directory == None:
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
@@ -349,10 +349,15 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
     ax.set_title(f'{seed} - Workfunction W = {round(vacuum_level-fermi_level,5)}')
     ax.set(xlim = (0,max(x)),xlabel = r'Position along c [$\AA$]', ylabel = 'potential [eV]')
     ax.legend(loc='best')
+    if mod_odi:             
+        for item in listOfFiles:
+            if '_photo.odi' in item:
+                print(round(vacuum_level-fermi_level,5))
+                subprocess.call(f'sed -i "s/.*work_function.*/workfunction : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
 
     return fig,ax;
 
-def create_density_plot(directory:str==None, centered:bool = True):
+def create_density_plot(directory:str==None, centered:bool = True,mod_odi:bool = True):
     if directory == None:
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
@@ -386,7 +391,13 @@ def create_density_plot(directory:str==None, centered:bool = True):
     #ax.set(xlim = (10,15),ylim = (-0.001,0.015))# max(rel_density)+0.05))
     ax.set(xlim = (0,max(x)),ylim = (-0.1,max(rel_density)+0.05),xlabel = r'Position along c [$\AA$]', ylabel = 'scaled electronic density')
     plt.tight_layout()
-    print(round(slab_vol,5))
+    if mod_odi:             
+        for item in listOfFiles:
+            if '_photo.odi' in item:
+                print(round(slab_vol,5))
+                subprocess.call(f'sed -i "s/.*surface_area.*/surface_area : {round(area,5)}/" {directory}{item}',shell=True)
+                subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
+    
     return fig,ax;
     
 def read_bands2pmg(seed:str, export = False):
