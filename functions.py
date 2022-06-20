@@ -298,14 +298,14 @@ def average_potential_from_file(input_file:str, potential = True):
     y_axis = mean_energy_of_plane * factor
     
     results = np.c_[x_axis,y_axis]
-    #change file extension
+    # #change file extension
     
-    file_name = input_file.split('/')
-    new_file = file_name[-1]+'.dat'
-    path = ''
-    for item in file_name[:-1]:
-        path += item + '/'
-    np.savetxt(f'{path}{new_file}',results,delimiter=' ')
+    # file_name = input_file.split('/')
+    # new_file = file_name[-1]+'.dat'
+    # path = ''
+    # for item in file_name[:-1]:
+    #     path += item + '/'
+    # np.savetxt(f'{path}{new_file}',results,delimiter=' ')
     return x_axis*plane_distance, y_axis, cell;
 
 def create_potential_plot(directory:str=None, bounds = None,centered:bool = True,mod_odi:bool = True):
