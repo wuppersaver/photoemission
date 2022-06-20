@@ -353,7 +353,7 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
         for item in listOfFiles:
             if '_photo.odi' in item:
                 print(round(vacuum_level-fermi_level,5))
-                subprocess.call(f'sed -i "s/.*work_function.*/workfunction : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
+                subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
 
     return fig,ax;
 
