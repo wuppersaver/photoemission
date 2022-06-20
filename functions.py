@@ -264,10 +264,10 @@ def average_potential_from_file(input_file:str, potential = True):
     else: factor = 1
     header = []
     with open(input_file, 'r') as f:
-        while True:
+       for i in range(12):
             line = next(f)
             header.append(line.strip().split())
-            if 'END' in line:
+            if 'END header:' in line:
                 break
 
     spin_value = int(header[7][0])
@@ -352,7 +352,7 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
     if mod_odi:             
         for item in listOfFiles:
             if '_photo.odi' in item:
-                print(round(vacuum_level-fermi_level,5))
+                print('Writing work_function=', round(vacuum_level-fermi_level,5),f'eV to {item}')
                 subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
 
     return fig,ax;
@@ -364,7 +364,7 @@ def create_density_plot(directory:str==None, centered:bool = True,mod_odi:bool =
     listOfFiles = os.listdir(directory)
     found = False
     for item in listOfFiles:
-        if '.den_fmt' in item:
+        if '.den_fmt' in item and not '.dat' in item:
             path = directory + item
             x, density,cell = average_potential_from_file(path, potential = False)
             found = True
@@ -394,7 +394,7 @@ def create_density_plot(directory:str==None, centered:bool = True,mod_odi:bool =
     if mod_odi:             
         for item in listOfFiles:
             if '_photo.odi' in item:
-                print(round(slab_vol,5))
+                print('Writing volume=', round(slab_vol,6), 'A^3 and area=', round(area,5),f'A^2 to {item}')
                 subprocess.call(f'sed -i "s/.*surface_area.*/surface_area : {round(area,5)}/" {directory}{item}',shell=True)
                 subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
     
