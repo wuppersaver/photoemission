@@ -89,7 +89,6 @@ def get_workfct(directory:str=None, bounds = None,centered:bool = True,mod_odi:b
             if '_photo.odi' in item:
                 print('Writing work_function=', round(vacuum_level-fermi_level,5),f'eV to {item}')
                 subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
-
     return;
 
 def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = True):
@@ -121,6 +120,7 @@ def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = Tru
                 subprocess.call(f'sed -i "s/.*surface_area.*/surface_area : {round(area,5)}/" {directory}{item}',shell=True)
                 subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
     return;
+
 
 directory = './structures/'
 
