@@ -6,6 +6,8 @@ import json
 import matplotlib.pyplot as plt
 from optados_output_class import *
 
+directory = './structures/'
+
 def average_potential_from_file(input_file:str, potential = True):
     if potential: factor = 27.211396
     else: factor = 1
@@ -121,8 +123,6 @@ def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = Tru
                 subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
     return;
 
-
-directory = './structures/'
 
 get_workftct(directory=directory,centered=False)
 get_area_volume(directory=directory, centered=False)

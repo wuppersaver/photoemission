@@ -15,7 +15,7 @@ CASE_IN=template
 
 source activate matchem
 
-sed -i "s/.*directory =.*/directory = ${pwd}/" ~/function_scripts/calculate_photo_properties.py
+sed -i "0,/.*directory =.*/s//directory = '${pwd}'/" ~/function_scripts/calculate_photo_properties.py
 
 python ~/function_scripts/calculate_photo_properties.py
 

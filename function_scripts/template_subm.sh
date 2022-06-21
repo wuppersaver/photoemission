@@ -9,7 +9,7 @@ calculation[geometry]=${CASE_IN}_geometry.sh
 calculation[spectral]=${CASE_IN}_spectral.sh
 calculation[bands]=${CASE_IN}_bands.sh
 calculation[optados_all]=${CASE_IN}_od_all.sh
-calulation[work_fct]=${CASE_IN}_set_work_fct.sh
+calculation[work_fct]=${CASE_IN}_set_work_fct.sh
 calculation[optados_photo]=${CASE_IN}_od_sweep_4-5.5.sh
 
 if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
