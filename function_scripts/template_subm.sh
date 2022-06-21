@@ -59,7 +59,7 @@ if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
         sed -i '0,/.*STATE=.*/s//STATE=wrkfct_run/' ${CASE_IN}_subm.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[work_fct]}
         echo "Setting Workfct and Volume/Area"
-        qsub ${calculation[work_fct]]}
+        qsub ${calculation[work_fct]}
         exit
     fi
     if [[ $INTERNAL == wrkfct_success ]]; then
