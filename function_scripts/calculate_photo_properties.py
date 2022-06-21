@@ -5,8 +5,7 @@ from pymatgen.core import Lattice
 import json
 import matplotlib.pyplot as plt
 from optados_output_class import *
-
-directory = './structures/'
+import math
 
 def average_potential_from_file(input_file:str, potential = True):
     if potential: factor = 27.211396
@@ -68,12 +67,12 @@ def get_workfct(directory:str=None, bounds = None,centered:bool = True,mod_odi:b
             found = 1
             path = directory + item
             x, potential,cell = average_potential_from_file(path, potential = True)
-        if '_fermi.odo' in item:   
+        if '_all.odo' in item:   
             odo_pth = directory + item
             fermi_level = OptaDOSOutput(odo_pth).fermi_e
             found = 0
     if found != 0: 
-        file = ['Opatdos File (_fermi.odo)','Potential File (.pot_fmt)']
+        file = ['Opatdos File (_all.odo)','Potential File (.pot_fmt)']
         raise OSError(2, f'No {file[found-1]} found!')
     indices = [0,0]
     stepsize = x[1] - x[0]
@@ -123,6 +122,7 @@ def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = Tru
                 subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
     return;
 
-
-get_workftct(directory=directory,centered=False)
-get_area_volume(directory=directory, centered=False)
+if __name__ == "__main__":
+    input_path = '/rds/general/user/fcm19/home/PhD/photoemission/structures/Cu_surf_100_victor_60A/'
+    get_workfct(directory=input_path, centered=False)
+    get_area_volume(directory=input_path, centered=False)
