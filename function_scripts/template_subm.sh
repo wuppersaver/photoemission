@@ -26,7 +26,9 @@ if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
     if [[ $INTERNAL == geometry_run ]]; then    
         sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${CASE_IN}_subm.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
-        echo "CONTINUATION" | tee -a ${CASE_IN}_geom.param
+        if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geom.param; then
+            echo "CONTINUATION" | tee -a ${CASE_IN}_geom.param
+        fi
         echo "GeometryOptimization Continued"
         qsub ${calculation[geometry]}
         exit
