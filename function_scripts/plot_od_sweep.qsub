@@ -1,0 +1,12 @@
+#!/bin/bash  --login
+#PBS -N py_od_sweep_plot
+#PBS -l select=1:ncpus=4:mem=20GB
+#PBS -l walltime=01:00:00
+
+cd $PBS_O_WORKDIR
+
+module load anaconda3/personal
+
+source activate matchem
+
+python plot_od_sweep.py

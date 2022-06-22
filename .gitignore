@@ -133,7 +133,7 @@ dmypy.json
 
 # Cu_* folders
 structures/
-function_scripts/
+function_scripts/calculate_photo_properties.py
 .vscode/
 # Markdown files
 *.md
