@@ -44,10 +44,10 @@ if [ "$CONTINUE" == true ]; then
     echo $exit_code
     if [[ exit_code == 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_success/' ${CASE_IN}_subm.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_sweep_4-5.5.qsub
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_sweep_4-5.5.sh
         ./${CASE_IN}_subm.sh
     else
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_fail/' ${CASE_IN}_subm.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_sweep_4-5.5.qsub
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_sweep_4-5.5.sh
     fi
 fi
