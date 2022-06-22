@@ -133,10 +133,10 @@ dmypy.json
 
 # Cu_* folders
 structures/
+function_scripts/
 .vscode/
 # Markdown files
 *.md
 test.ipynb
 *.e*
 *.o*
-function_scripts/
