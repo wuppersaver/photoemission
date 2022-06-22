@@ -774,6 +774,37 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
             json.dump(proj_dos.as_dict(), f)
     return fig,ax;
 
+def get_joint_dos_optados(path:str = None, export_json:bool = False):
+    if path == None:
+        path = f'./structures/'
+    if path[-1] != '/': path += '/'
+    listOfFiles = os.listdir(path)
+     # create output classes for each of the output files
+    for item in listOfFiles:
+        if '.jadaptive.dat' in item:
+            energy,jdos = np.genfromtxt(f'{path}{item}', skip_header=12, dtype =float, unpack=True)
+    data = {'energy':energy,'jdos':jdos}
+    return data;
+    
+def plot_joint_dos_optados(data,label, xlimit = [0,12]):
+    stepsize = data['energy'][1] - data['energy'][0]
+    for index,item in enumerate(data['energy']):
+        if xlimit[1] - item < stepsize:
+            upper_bound = index
+            break
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,1, figsize = (10,5), dpi = 300)
+    ax.plot(data['energy'], data['jdos'], label = label,lw = 1)
+    ax.set_xlabel('energy [eV]')
+    ax.set_ylabel('density of states [electrons/eV]')
+    ax.set_ylim([0,data['jdos'][upper_bound]*1.1])
+    ax.set_xlim(xlimit)
+    return fig,ax;
+
+def add_jdos_line(data,fig,ax,label:str='New jdos'):
+    ax.plot(data['energy'],data['jdos'],label = label, lw=1)
+    return fig,ax;
+
 def create_slab_layer_convergence(structure, indices, min, max, seed, *cutoff):   
     layers = [i for i in range(min, max+1)]
     castep_opt_template = {
