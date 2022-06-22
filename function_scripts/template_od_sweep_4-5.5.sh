@@ -36,11 +36,18 @@ for i in ${energies[@]}
 do
 	sed -i "s/.*photon_energy.*/photon_energy : $i/" ${CASE_IN}.odi
 	$OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
+	exit_code=$?
 	mv ${CASE_IN}.odo ${CASE_IN}_${i}_3step.odo
 done
 
-if [[ $? == 0 ]] ; then
-	sed -i '0,/.*STATE=.*/s//STATE=od_photo_success/' ${CASE_IN}_subm.sh
-else
-	sed -i '0,/.*STATE=.*/s//STATE=od_photo_fail/' ${CASE_IN}_subm.sh
+if [ "$CONTINUE" == true ]; then
+    echo $exit_code
+    if [[ exit_code == 0 ]] ; then
+        sed -i '0,/.*STATE=.*/s//STATE=od_photo_success/' ${CASE_IN}_subm.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_sweep_4-5.5.qsub
+        ./${CASE_IN}_subm.sh
+    else
+        sed -i '0,/.*STATE=.*/s//STATE=od_photo_fail/' ${CASE_IN}_subm.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_sweep_4-5.5.qsub
+    fi
 fi

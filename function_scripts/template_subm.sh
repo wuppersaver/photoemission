@@ -49,13 +49,6 @@ if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
         exit
     fi
     if [[ $INTERNAL == od_all_success ]]; then
-        sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${CASE_IN}_subm.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[bands]} 
-        echo "Bandstructure"
-        qsub ${calculation[bands]}
-        exit
-    fi
-    if [[ $INTERNAL == bands_success ]]; then
         sed -i '0,/.*STATE=.*/s//STATE=wrkfct_run/' ${CASE_IN}_subm.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[work_fct]}
         echo "Setting Workfct and Volume/Area"
@@ -64,8 +57,16 @@ if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
     fi
     if [[ $INTERNAL == wrkfct_success ]]; then
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${CASE_IN}_subm.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]} 
         echo "OptaDOS Photoemission"
         qsub ${calculation[optados_photo]}
+        exit
+    fi
+    if [[ $INTERNAL == od_photo_success ]]; then
+        sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${CASE_IN}_subm.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[bands]} 
+        echo "Bandstructure"
+        qsub ${calculation[bands]}
         exit
     fi
 else
