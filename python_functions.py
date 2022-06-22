@@ -400,47 +400,57 @@ def create_density_plot(directory:str==None, centered:bool = True,mod_odi:bool =
     
     return fig,ax;
     
-def read_bands2pmg(seed:str, export = False):
+def read_bands2pmg(path:str=None, export = False):
     num_kpoints, num_spin_comps, num_electrons_up, num_electrons_down, num_bands, fermi_energy = 0,0,0,0,0,0
     kpts_coordinates = []
     eigenvalues = {}
     cell = []
+    if path == None:
+        path = f'./structures/'
+    if path[-1] != '/': path += '/'
+    listOfFiles = os.listdir(path)
+     # create output classes for each of the output files
+    for item in listOfFiles:
+        if '.bands' in item and '.orig' not in item:
+            seed = item.replace('.bands','')
+            with open(f'{path}{item}','r') as f:
+                for line in f:
+                    line = line.strip()
+                    if 'Number of k-points' in line:
+                        num_kpoints = int(line.split()[3])
+                        num_spin_comps = int(next(f).split()[4])
+                        num_electrons = next(f).split()
+                        num_electrons_up = float(num_electrons[3])
+                        num_bands = int(next(f).split()[3])
+                        fermi_energy = float(next(f).split()[5])*27.2113966
 
-    with open(f'./structures/{seed}/{seed}.bands','r') as f:
-        for line in f:
-            line = line.strip()
-            if 'Number of k-points' in line:
-                num_kpoints = int(line.split()[3])
-                num_spin_comps = int(next(f).split()[4])
-                num_electrons = next(f).split()
-                num_electrons_up = float(num_electrons[3])
-                num_bands = int(next(f).split()[3])
-                fermi_energy = float(next(f).split()[5])*27.2113966
+                        kpts_coordinates = np.zeros((num_kpoints,3))
+                        eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
+                        if num_spin_comps > 1:
+                            num_electrons_down = float(num_electrons[4])
+                            eigenvalues[Spin.down] = np.zeros([num_bands, num_kpoints])
 
-                kpts_coordinates = np.zeros((num_kpoints,3))
-                eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
-                if num_spin_comps > 1:
-                    num_electrons_down = float(num_electrons[4])
-                    eigenvalues[Spin.down] = np.zeros([num_bands, num_kpoints])
-                
-                next(f)
-                cell.append([float(x) for x in next(f).split()])
-                cell.append([float(x) for x in next(f).split()])
-                cell.append([float(x) for x in next(f).split()])
-                lattice_obj = Lattice(cell)
-                    
-            if line.split()[0] == 'K-point':
-                temp = line.split()
-                index = int(temp[1])-1
-                kpts_coordinates[index] = [float(temp[2]),float(temp[3]),float(temp[4])]
-                next(f)
-                for i in range(num_bands):
-                    eigenvalues[Spin.up][i][index] = float(next(f).strip())*27.2113966
-                if num_spin_comps > 1:
-                    next(f)
-                    for i in range(num_bands):
-                        eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
-    kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'./structures/{seed}/{seed}.cell')).get_primitive_standard_structure()) #Should use the Setyawan-Curtarolo Convention
+                        next(f)
+                        cell.append([float(x) for x in next(f).split()])
+                        cell.append([float(x) for x in next(f).split()])
+                        cell.append([float(x) for x in next(f).split()])
+                        lattice_obj = Lattice(cell)
+
+                    if line.split()[0] == 'K-point':
+                        temp = line.split()
+                        index = int(temp[1])-1
+                        kpts_coordinates[index] = [float(temp[2]),float(temp[3]),float(temp[4])]
+                        next(f)
+                        for i in range(num_bands):
+                            eigenvalues[Spin.up][i][index] = float(next(f).strip())*27.2113966
+                        if num_spin_comps > 1:
+                            next(f)
+                            for i in range(num_bands):
+                                eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
+    for item in listOfFiles: 
+        if '_geom.cell' in item: 
+            cell_item=item
+    kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'{path}{cell_item}')).get_primitive_standard_structure()) #Should use the Setyawan-Curtarolo Convention
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
     final_kpt_coordinates = np.zeros((num_kpoints+len(high_symm_indices)-2,3))
     final_eigenvalues = {Spin.up : np.zeros([num_bands, num_kpoints+len(high_symm_indices)-2])}
