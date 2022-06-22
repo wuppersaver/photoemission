@@ -139,3 +139,4 @@ structures/
 test.ipynb
 *.e*
 *.o*
+function_scripts/calculate_photo_properties.py
