@@ -667,7 +667,7 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     
     return fig,ax;
 
-def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False, path:str=None):
+def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
     energies, total= [],[]
     columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
     plt.style.use('seaborn-darkgrid')
@@ -677,11 +677,12 @@ def plot_proj_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False,
     spin_channels = False
     shifted_efermi = False
     if path == None:
-        path = f'./structures/{seed}/'
+        path = f'./structures/'
     listOfFiles = os.listdir(path)
      # create output classes for each of the output files
     for item in listOfFiles:
         if '_fermi.odo' in item:
+            seed = item.replace('_fermi.odo','')
             with open(path + item,'r') as g:
                 for line in g:
                     if 'Shift energy scale so fermi_energy=0' in line: shifted_efermi = bool(line.split()[7]=='True')
@@ -1010,13 +1011,12 @@ done\n\n")
             f.write(line)
     return;
 
-def read_photonsweep_outputs(seed:str, path = None):
+def read_photonsweep_outputs(path:str = None, seed:str = None):
     '''
     This function reads in the output files from a series of optados calculations
     '''
     # create array of the cell volumes, and total energies
     data = {} 
-
     if path == None:
         path = f'./structures/{seed}/'
     listOfFiles = os.listdir(path)
