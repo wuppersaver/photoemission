@@ -1,5 +1,5 @@
 NEW=Cu100
-DIRECTORY=../structures/${NEW}_victor_60A
+DIRECTORY=../structures/${NEW}_felix
 
 files=("subm" "geometry" "spectral" "od_all" "set_work_fct" "od_sweep_4-5.5" "bands")
 

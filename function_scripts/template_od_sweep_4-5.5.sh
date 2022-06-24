@@ -36,10 +36,10 @@ for i in ${energies[@]}
 do
 	sed -i "s/.*photon_energy.*/photon_energy : $i/" ${CASE_IN}.odi
 	$OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
-	exit_code=$?
 	mv ${CASE_IN}.odo ${CASE_IN}_${i}_3step.odo
 done
 
+exit_code=$?
 if [ "$CONTINUE" == true ]; then
     echo $exit_code
     if [[ exit_code == 0 ]] ; then
