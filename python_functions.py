@@ -313,22 +313,25 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
     listOfFiles = os.listdir(directory)
-    found = 2
+    found = [False,False]
     for item in listOfFiles:
         if '.pot_fmt' in item and not '.dat' in item:
-            found = 1
+            found[0] = True
             path = directory + item
             x, potential,cell = average_potential_from_file(path, potential = True)
-        if '_fermi.odo' in item:   
+        if '_all.odo' in item:   
             odo_pth = directory + item
             fermi_level = OptaDOSOutput(odo_pth).fermi_e
-            found = 0
-    if found != 0: 
-        file = ['Opatdos File (_fermi.odo)','Potential File (.pot_fmt)']
-        raise OSError(2, f'No {file[found-1]} found!')
+            found[1] = True
+        if False not in found: break
+    if False in found: 
+        file = ['Potential File (.pot_fmt)','Opatdos File (_all.odo)']
+        for item in found: 
+            if item == False:
+                raise OSError(2, f'No {file[found.index[item]]} found!')
     indices = [0,0]
     stepsize = x[1] - x[0]
-    if not centered and bounds == None: bounds = [int(x[-1]/2)-1,int(x[-1]/2)+1]
+    if not centered and bounds == None: bounds = [(x[-1]/2)-1,(x[-1]/2)+1]
     if centered and bounds == None: bounds =[0,5]
     #print(fermi_level.path)
     seed = path.split('/')[-1].split('.')[0]
@@ -667,7 +670,7 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     
     return fig,ax;
 
-def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
+def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False,):
     energies, total= [],[]
     columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
     plt.style.use('seaborn-darkgrid')
@@ -680,9 +683,10 @@ def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = F
         path = f'./structures/'
     listOfFiles = os.listdir(path)
      # create output classes for each of the output files
+    found=[False,False]
     for item in listOfFiles:
-        if '_fermi.odo' in item:
-            seed = item.replace('_fermi.odo','')
+        if '_all.odo' in item:
+            seed = item.replace('_all.odo','')
             with open(path + item,'r') as g:
                 for line in g:
                     if 'Shift energy scale so fermi_energy=0' in line: shifted_efermi = bool(line.split()[7]=='True')
@@ -690,6 +694,7 @@ def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = F
                         for i in range(6): line = next(g)
                         if 'Fermi energy' in line: efermi = float(line.split()[6])
                         else: print('No fermi energy found, check cursor position!')
+            found[0] = True
         if '.pdos.dat' in item:
             with open(path+item,'r') as f:
                 for line in f:
@@ -698,6 +703,11 @@ def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = F
                         header.append(line_values)
                     else:
                         values.append(line_values)
+            found[1] = True
+    files=[f'Optados Output',f'pDOS Data File']
+    for index,item in enumerate(found):
+        if item == False:
+            raise  OSError(2, f'No {files[index]} found!')
     for i, item in enumerate(header):
         if 'Column:' in item:
             columns[item[2]] = []
