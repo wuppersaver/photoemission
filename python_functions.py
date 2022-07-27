@@ -249,15 +249,15 @@ def generate_optados_input(path = None,**options):
                 f.write(line)
     return;
 
-def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
-    oh = SingleCrystal(facets_energies, mat_structure)
-    fractions = oh.facet_fractions
-    new = defaultdict(list)
+# def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
+#     oh = SingleCrystal(facets_energies, mat_structure)
+#     fractions = oh.facet_fractions
+#     new = defaultdict(list)
 
-    for d in (facets_energies, fractions):
-        for key, value in d.items():
-            new[key].append(value)
-    return new;
+#     for d in (facets_energies, fractions):
+#         for key, value in d.items():
+#             new[key].append(value)
+#     return new;
 
 def average_potential_from_file(input_file:str, potential = True):
     if potential: factor = 27.211396
@@ -707,7 +707,7 @@ def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = F
     files=[f'Optados Output',f'pDOS Data File']
     for index,item in enumerate(found):
         if item == False:
-            raise  OSError(2, f'No {file[index]} found!')
+            raise  OSError(2, f'No {files[index]} found!')
     for i, item in enumerate(header):
         if 'Column:' in item:
             columns[item[2]] = []
@@ -1021,13 +1021,12 @@ done\n\n")
             f.write(line)
     return;
 
-def read_photonsweep_outputs(seed:str, path = None):
+def read_photonsweep_outputs(path:str = None, seed:str = None):
     '''
     This function reads in the output files from a series of optados calculations
     '''
     # create array of the cell volumes, and total energies
     data = {} 
-
     if path == None:
         path = f'./structures/{seed}/'
     listOfFiles = os.listdir(path)
