@@ -140,3 +140,5 @@ function_scripts/calculate_photo_properties.py
 test.ipynb
 *.e*
 *.o*
+CO_on_Cu111.xyz
+GaAs_run.ipynb
