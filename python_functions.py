@@ -427,7 +427,7 @@ def read_bands2pmg(path:str=None, export = False):
                         num_electrons_up = float(num_electrons[3])
                         num_bands = int(next(f).split()[3])
                         fermi_energy = float(next(f).split()[5])*27.2113966
-                        print(fermi_energy)
+                        #print(fermi_energy)
 
                         kpts_coordinates = np.zeros((num_kpoints,3))
                         eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
@@ -439,7 +439,7 @@ def read_bands2pmg(path:str=None, export = False):
                         cell.append([float(x) for x in next(f).split()])
                         cell.append([float(x) for x in next(f).split()])
                         cell.append([float(x) for x in next(f).split()])
-                        print(cell)
+                        #print(cell)
                         lattice_obj = Lattice(cell)
 
                     if line.split()[0] == 'K-point':
