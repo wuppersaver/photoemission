@@ -14,10 +14,11 @@ def get_bs_plot(
         smooth_k=3,
         smooth_np=100,
         bs_labels=[],
+        size = [10,8]
     ):
-        plt.style.use('seaborn-darkgrid')
+        plt.style.use('seaborn-poster')
         plt.rcParams["font.family"] = "serif"
-        pretty = pretty_plot(12, 8)
+        pretty = pretty_plot(size[0],size[1])
         bs_array = [bandstructure]
 
         if isinstance(smooth, bool):
@@ -56,7 +57,7 @@ def get_bs_plot(
                 else:
                     bs_label = f"Band {ibs} {sp.name}"
 
-                handles.append(mlines.Line2D([], [], lw=2, ls=ls, color=colors[ibs], label=bs_label))
+                handles.append(mlines.Line2D([], [], lw=0.2, ls=ls, color=colors[ibs], label=bs_label))
 
                 distances, energies = data["distances"], data["energy"][str(sp)]
 
@@ -73,7 +74,7 @@ def get_bs_plot(
             # Draw Fermi energy, only if not the zero
             if not zero_to_efermi:
                 ef = bs.efermi
-                pretty.axhline(ef, lw=2, ls="-.", color=colors[ibs])
+                pretty.axhline(ef, lw=1, ls="-.", color=colors[ibs])
 
         # defaults for ylim
         e_min = -4
@@ -102,7 +103,7 @@ def get_bs_plot(
         #plt.xlabel(r"$\mathrm{Wave\ Vector}$", fontsize=30)
         pretty.xlabel('')
         ylabel = r"$\mathrm{E\ -\ E_f\ (eV)}$" if zero_to_efermi else r"$\mathrm{Energy\ (eV)}$"
-        pretty.ylabel(ylabel, fontsize=10)
+        pretty.ylabel(ylabel, fontsize=15)
 
         # X range (K)
         # last distance point
@@ -141,7 +142,7 @@ def pretty_plot(width=8, height=None, plt=None, dpi=300, color_cycle=("qualitati
     Returns:
         Matplotlib plot object with properly sized fonts.
     """
-    ticksize = int(width)
+    ticksize = int(width)*1.6
 
     golden_ratio = (math.sqrt(5) - 1) / 2
 
@@ -167,9 +168,9 @@ def pretty_plot(width=8, height=None, plt=None, dpi=300, color_cycle=("qualitati
     plt.yticks(fontsize=ticksize)
 
     ax = plt.gca()
-    ax.set_title(ax.get_title(), size=width * 4)
+    ax.set_title(ax.get_title(), size=width * 1.6)
 
-    labelsize = int(width*1.5)
+    labelsize = int(width*4)
 
     ax.set_xlabel(ax.get_xlabel(), size=labelsize)
     ax.set_ylabel(ax.get_ylabel(), size=labelsize)
@@ -311,6 +312,7 @@ def get_ticks(bs):
         bs = [bs]
         bs = bs[0] if isinstance(bs, list) else bs
         ticks, distance = [], []
+        #print(bs.branches)
         for br in bs.branches:
             s, e = br["start_index"], br["end_index"]
 
@@ -345,6 +347,7 @@ def maketicks(bs, plt):
     utility private method to add ticks to a band structure
     """
     ticks = get_ticks(bs)
+    print(ticks)
     # Sanitize only plot the uniq values
     uniq_d = []
     uniq_l = []
@@ -355,8 +358,9 @@ def maketicks(bs, plt):
             uniq_l.append(t[1])
             
         else:
-            uniq_d.append(t[0])
-            uniq_l.append(t[1])
+            if t != temp_ticks[i-1]:
+                uniq_d.append(t[0])
+                uniq_l.append(t[1])
 
     plt.gca().set_xticks(uniq_d)
     plt.gca().set_xticklabels(uniq_l)
@@ -365,7 +369,9 @@ def maketicks(bs, plt):
         if ticks["label"][i] is not None:
             # don't print the same label twice
             if i != 0:
-                plt.axvline(ticks["distance"][i], color="k")
+                plt.axvline(ticks["distance"][i], color="k",lw = 1)
             else:
-                plt.axvline(ticks["distance"][i], color="k")
+                print(ticks["label"][i])
+                if ticks["label"][i] != ticks["label"][i]:
+                    plt.axvline(ticks["distance"][i], color="k",lw = 1)
     return plt

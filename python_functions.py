@@ -17,7 +17,7 @@ import json
 import os
 import math
 
-#from wulffpack import SingleCrystal
+from wulffpack import SingleCrystal
 
 from collections import defaultdict
 
@@ -132,6 +132,7 @@ def generate_castep_input(calc_struct='hello', **options):
     if not isinstance(calc_struct,ase.atoms.Atoms) and calc_struct != 'hello':
         
         calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
+    dict_options = options['general']
     castep = options['castep']
     #print(calc_struct)
     # initialize the calculator instance
@@ -142,7 +143,7 @@ def generate_castep_input(calc_struct='hello', **options):
     if options:
         calc._directory = castep['directory']
         calc._rename_existing_dir = False
-        calc._label = castep['seed_name']
+        calc._label = dict_options['seed']
         
         # Define parameter file options
         calc.param.task = castep['task']
@@ -249,15 +250,15 @@ def generate_optados_input(path = None,**options):
                 f.write(line)
     return;
 
-# def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
-#     oh = SingleCrystal(facets_energies, mat_structure)
-#     fractions = oh.facet_fractions
-#     new = defaultdict(list)
+def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
+    oh = SingleCrystal(facets_energies, mat_structure)
+    fractions = oh.facet_fractions
+    new = defaultdict(list)
 
-#     for d in (facets_energies, fractions):
-#         for key, value in d.items():
-#             new[key].append(value)
-#     return new;
+    for d in (facets_energies, fractions):
+        for key, value in d.items():
+            new[key].append(value)
+    return new;
 
 def average_potential_from_file(input_file:str, potential = True):
     if potential: factor = 27.211396
@@ -414,7 +415,7 @@ def read_bands2pmg(path:str=None, export = False):
     listOfFiles = os.listdir(path)
      # create output classes for each of the output files
     for item in listOfFiles:
-        if '.bands' in item and '.orig' not in item:
+        if '.bands' in item and '.orig' not in item and '.o2b' not in item:
             seed = item.replace('.bands','')
             with open(f'{path}{item}','r') as f:
                 for line in f:
@@ -426,6 +427,7 @@ def read_bands2pmg(path:str=None, export = False):
                         num_electrons_up = float(num_electrons[3])
                         num_bands = int(next(f).split()[3])
                         fermi_energy = float(next(f).split()[5])*27.2113966
+                        print(fermi_energy)
 
                         kpts_coordinates = np.zeros((num_kpoints,3))
                         eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
@@ -437,6 +439,7 @@ def read_bands2pmg(path:str=None, export = False):
                         cell.append([float(x) for x in next(f).split()])
                         cell.append([float(x) for x in next(f).split()])
                         cell.append([float(x) for x in next(f).split()])
+                        print(cell)
                         lattice_obj = Lattice(cell)
 
                     if line.split()[0] == 'K-point':
@@ -451,7 +454,7 @@ def read_bands2pmg(path:str=None, export = False):
                             for i in range(num_bands):
                                 eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
     for item in listOfFiles: 
-        if '_geom.cell' in item: 
+        if '_geom.cell' in item or '.cell' in item: 
             cell_item=item
     kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'{path}{cell_item}')).get_primitive_standard_structure()) #Should use the Setyawan-Curtarolo Convention
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
@@ -589,41 +592,50 @@ def append_symm_line(base_bandstruct, line_to_add):
     
     return BandStructureSymmLine(kpoints, eigenvalues, base_bandstruct.lattice_rec, base_dict['efermi'], base_dict['labels_dict']);
 
-def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
+def plot_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
     energies, up, down, total, max_value = [],[],[],[],[]
     up_total = 0
     down_total = 0
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     shift_efermi = True
-
-    with open(f'./structures/{seed}/{seed}.adaptive.dat','r') as f:
-        for line in f:
-            line = line.strip()
-            values = line.split()
-            if '#' not in values[0]:
-                energies.append(float(values[0]))
-                up.append(float(values[1]))
-                down.append(float(values[2]))
-                total.append(float(values[1])-float(values[2]))
-                up_total = float(values[3])
-                down_total = float(values[4])
-    with open(f"./structures/{seed}/{seed}.odo", 'r') as o:
-        for line in o:
-            line = line.strip()
-            if 'Setting Fermi Energy' in line:
-                temp = next(o).strip().split()
-                efermi = float(temp[6])
-                break
-    with open(f"./structures/{seed}/{seed}.odi", "r") as i:
-        for line in i:
-            line = line.strip()
-            if 'SET_EFERMI_ZERO' in line:
-                temp = line.split()
-                if temp[2] in ['false','FALSE','False','.false.']:
-                    shift_efermi = False
-                break
-
+    if path[-1] != '/':
+        path = path + '/'
+    if path == None:
+        path = f'./structures/' 
+    listOfFiles = os.listdir(path)
+    for item in listOfFiles:
+        if '.adaptive.dat' in item or '.linear.dat' in item:
+            seed = item.split('.')[-3]
+            with open(f'{path}{item}','r') as f:
+                for line in f:
+                    line = line.strip()
+                    values = line.split()
+                    if '#' not in values[0]:
+                        energies.append(float(values[0]))
+                        up.append(float(values[1]))
+                        down.append(float(values[2]))
+                        total.append(float(values[1])-float(values[2]))
+                        #up_total = float(values[3])
+                        #down_total = float(values[4])
+        if '.odo' in item:
+            with open(f'{path}{item}','r') as o:
+                for line in o:
+                    line = line.strip()
+                    if 'Setting Fermi Energy' in line:
+                        temp = next(o).strip().split()
+                        efermi = float(temp[6])
+                        break
+        if '.odi' in item:
+            with open(f'{path}{item}','r') as i:
+                for line in i:
+                    line = line.strip()
+                    if 'SET_EFERMI_ZERO' in line:
+                        temp = line.split()
+                        if temp[2] in ['false','FALSE','False','.false.']:
+                            shift_efermi = False
+                        break
+    
     ax.set(xlim = [energies[0],energies[-1]], xlabel = 'Energy [eV]', ylabel = 'DOS', yticks = [], title = f'DOS Plot for {seed}')
     ax.axhline(0, c = 'gray')
     
@@ -670,11 +682,9 @@ def plot_dos_optados(seed:str, plot_up:bool = True, plot_down:bool = False, plot
     
     return fig,ax;
 
-def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False,):
+def read_proj_dos_optados(path:str=None,  export_json = False,):
     energies, total= [],[]
     columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
-    plt.style.use('seaborn-darkgrid')
-    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     header_string = '#+----------------------------------------------------------------------------+'
     header, values = [],[]
     spin_channels = False
@@ -759,30 +769,44 @@ def plot_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = F
             total.append(temp_total)
             totals[Spin.up].append(temp_up)
             totals[Spin.down].append(temp_down)
-    if plot_total: ax.plot(energies, total, label = f"{atom}-total", alpha = 0.8,lw = 1)
-    for atom in projections.keys():
-        for orbital in projections[atom]:
-            if spin_channels:
-                if plot_up: 
-                    if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Up']): 
-                        ax.plot(energies, projections[atom][orbital]['Up'], label = f"{columns[columns.keys()[0]]}-{columns[columns.keys()[-1]]}-{orbital}-Up",alpha = 0.6, lw = 1)
-                if plot_down: 
-                    if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Down']): 
-                        ax.plot(energies, projections[atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
-            else:
-                keys = columns['1']
-                print(keys)
-                if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]): 
-                    ax.plot(energies, projections[atom][orbital], label = f"{keys[0][0],keys[0][1]}-{keys[-1][0],keys[-1][1]}-{orbital}", alpha = 0.6,lw = 1)
-    if xlimit == None: ax.set(xlim = (min(energies),max(energies)))
-    else: ax.set(xlim = xlimit)
-    plt.legend()
     if export_json:                                                             # Export currently gives errors due to inconsistencies within pymatgen DOS class                                                             
         cell = read_cell2pmg(path = f"./structures/{seed}/{seed}.cell")
         tot_dos = Dos(energies = energies, densities = totals,efermi = 0)
         proj_dos = CompleteDos(cell, total_dos = tot_dos, pdoss = projections)
         with open(f'./structures/jsons/DOS/{seed}.json', 'w') as f:
-            json.dump(proj_dos.as_dict(), f)
+            json.dump(proj_dos.as_dict(), f)       
+    data = {
+        'energies' : energies,
+        'total' : totals,
+        'projections' : projections,
+        'seed' : seed,
+        'columns' : columns,
+        'spin channels' : spin_channels,
+
+    }
+    return data; 
+
+def plot_proj_dos_optados(data:dict=None,plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None):
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    if plot_total: ax.plot(data['energies'], data['total'], label = f"{atom}-total", alpha = 0.8,lw = 1)
+    for atom in data['projections'].keys():
+        for orbital in data['projections'][atom]:
+            if data['spin channels']:
+                if plot_up: 
+                    if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]['Up']): 
+                        ax.plot(data['energies'], data['projections'][atom][orbital]['Up'], label = f"{data['columns'][data['columns'].keys()[0]]}-{data['columns'][data['columns'].keys()[-1]]}-{orbital}-Up",alpha = 0.6, lw = 1)
+                if plot_down: 
+                    if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]['Down']): 
+                        ax.plot(data['energies'], data['projections'][atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
+            else:
+                keys = data['columns']['1']
+                print(keys)
+                if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]): 
+                    ax.plot(data['energies'], data['projections'][atom][orbital], label = f"{keys[0][0],keys[0][1]}-{keys[-1][0],keys[-1][1]}-{orbital}", alpha = 0.6,lw = 1)
+    if xlimit == None: ax.set(xlim = (min(data['energies']),max(data['energies'])))
+    else: ax.set(xlim = xlimit)
+    plt.legend()
     return fig,ax;
 
 def get_joint_dos_optados(path:str = None, export_json:bool = False):
@@ -1047,7 +1071,8 @@ def read_photonsweep_outputs(path:str = None, seed:str = None):
     return data;
 
 def make_photonsweep_plots(data:dict,**options):
-    plt.style.use('seaborn-darkgrid')
+    if options['plottype'] == 'picture': plt.style.use('seaborn-darkgrid')
+    if options['plottype'] == 'poster': plt.style.use('seaborn-poster')
     fig, ax = plt.subplots(1,2, figsize = (14,6), dpi = 300)
     if len(data['bloch']) == len(data['free electron']):
         data['mean'] = 0.5*data['bloch']+0.5*data['free electron']
@@ -1056,10 +1081,11 @@ def make_photonsweep_plots(data:dict,**options):
         if item in ['bloch', 'free electron', 'mean']:
             ax[0].plot(data[item][:,0],data[item][:,1], marker = '+', label = f"{item} ({options['temperature']} K)")
             ax[1].plot(data[item][:,0],[x*1000 for x in data[item][:,2]], marker = '+', label =  f"{item} ({options['temperature']} K)")
-    
+        if item in ['experimental']:
+            ax[1].plot(data[item][:,0],data[item][:,1], c='black' ,marker = '+', label = f"{item} (298 K)")
     ax[0].axvline(data['workfct'], ls = '--', c = 'red', label = 'workfunction')
     ax[1].axvline(data['workfct'], ls = '--', c = 'red', label = 'workfunction')
-    ax[0].set(xlabel = 'photon energy [eV]', ylabel = 'Quantum efficiency', title = f"{options['title']} quantum efficiency", yscale='log', ylim = [1e-10, 1e-2])
+    ax[0].set(xlabel = 'photon energy [eV]', ylabel = 'Quantum Efficiency (QE)', title = f"{options['title']} Quantum Efficiency", yscale='log', ylim = [1e-10, 1e-2])
     ax[1].set(xlabel = 'photon energy [eV]', ylabel = 'Mean Transverse Energy (MTE) [meV]', title = f"{options['title']} MTE")
     ax[0].legend()
     ax[1].legend()
