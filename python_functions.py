@@ -5,13 +5,9 @@ Created on Mon Jan 24 10:50:04 2022
 
 @author: brunocamino
 """
-
-from ast import Index
-from click import option
 import numpy as np
 import subprocess
 import ase
-import re
 import warnings
 import json
 import os
@@ -53,62 +49,127 @@ def get_qe(optados_output):
     #This is for you to develop :)
     pass
 
-def generate_input_files(calc_struct = None,**options):
+def generate_input_files(**options):
+    task_functions = {
+        'Geometry' : generate_castep_input('geometry',**options),
+        'Spectral' : generate_castep_input('spectral',**options),
+        'OD_Fermi' : generate_optados_input('fermi',**options),
+        'Workfunction' : generate_workfct_input('',**options),
+        'OD_Photo_Sweep' : generate_optados_input('photo_sweep',**options),
+        'BandStructure' : generate_castep_input('bands',**options),
+    }
     general = options['general']
     for task in general['tasks']:
-        print(task)
+        current = task_functions.get(task, lambda: 'Invalid')
+    if general['template_scripts'] : generate_scripts(**options)
     return
 
-def generate_qsub_file(**options):
-    # IMPORTANT!!This function is very specific to the machine the generated file is intended for!
-    
-    # seed_name (str) : seed for input and output files for calculation
-    # queue (str) : dictionary key for the submission queue (see queues dict below)
-    # program (str) : dict key for the intended calculation program (see programs dict below)
-    # bandstructure (bool) : boolean, if bandstructure calculation is performed, it triggers post-processing of *.bands file
-    
-    
-    # !!Programs are specific to Cluster and User!!
-    programs = {
-        'castep_19':        '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--mpi/castep.mpi',
-        'castep_18':        '~/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi',
-        'castep_18_mod' :   '~/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi',
-        'orbitals2bands':   '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/orbitals2bands',
-        'optados':          '~/modules_codes/optados/optados.x',
-        'geom2xyz':         '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/geom2xyz'
+
+def generate_scripts(**options):
+    blocks = {
+        'Geometry' : """            sed -i '0,/.*STATE=.*/s//STATE=geometry_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
+        echo "GeometryOptimization"
+        qsub ${calculation[geometry]} 
+        exit
+    fi
+    if [[ $INTERNAL == geometry_run ]]; then    
+        sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
+        if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geom.param; then
+            echo "CONTINUATION" | tee -a ${CASE_IN}_geom.param
+        fi
+        echo "GeometryOptimization Continued"
+        qsub ${calculation[geometry]}
+        exit
+    fi\n""",
+        'Spectral':"""          sed -i '0,/.*STATE=.*/s//STATE=spectral_run/' ${calculation[submission]} 
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[spectral]} 
+            echo "Spectral"
+            qsub ${calculation[spectral]}
+            exit
+        fi
+    fi\n""",
+        'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_all_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_all]} 
+        echo "OptaDOS misc"
+        qsub ${calculation[optados_all]}
+        exit
+    fi\n""",
+        'Workfunction' : """        sed -i '0,/.*STATE=.*/s//STATE=wrkfct_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[work_fct]}
+        echo "Setting Workfct and Volume/Area"
+        qsub ${calculation[work_fct]}
+        exit
+    fi\n""",
+        'OD_Photo_Sweep': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${calculation[submission]} 
+    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
+    echo "OptaDOS Photoemission Sweep"
+    qsub ${calculation[optados_photo]}
+    exit
+    fi\n""",
+        'BandStructure': """    sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${calculation[submission]} 
+    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[bands]} 
+    echo "Bandstructure"
+    qsub ${calculation[bands]}
+    exit
+    fi\n""",
+        'final' : """else
+    if [[ $# -gt 0 && $# -lt 2 ]] ; then
+        if [ ! -v calculation[$1] ]; then
+            echo "Wrong argument was given!!"
+            exit 1
+        else
+            sed -i "0,/.*STATE=.*/s//STATE=${$1}_stop/" ${calculation[submission]} 
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/'  ${calculation[$1]} 
+            qsub ${calculation[$1]}
+            exit
+        fi
+    else
+        echo "Too many arguments given!!"
+        exit 1
+    fi
+fi\n"""
     }
-    pbs = options['pbs']
+    task_shorts = {
+        'Geometry' : 'geometry',
+        'Spectral' : 'spectral',
+        'OD_Fermi' : 'od_fermi',
+        'Workfunction' : 'workfct',
+        'OD_Photo_Sweep' : 'od_photo',
+        'BandStructure' : 'bands',
+    }
+    tasks = options['general']['tasks']
+    directory = options['general']['directory']
+    seed = options['general']['seed']
+    with open('./templates/template_submission.sh','r') as f:
+        lines = f.readlines()
+    for index,line in enumerate(lines):
+        if 'template' in line:
+            lines[index] = line.replace('template',f'{seed}')
+    lines.append(blocks[tasks[0]])
+    for index,task in enumerate(tasks[1:]):
+        lines.append(f"    if [[ $INTERNAL == {task_shorts[tasks[index]]}_success ]]; then\n")
+        lines.append(blocks[task])
+    lines.append(blocks['final'])
+    with open(f'{directory}/{seed}_submission.sh','w') as fw:
+        fw.writelines(lines)
+    return
 
-    output = ["#!/bin/bash  --login\n"]
-    output.append(f"#PBS -N {pbs['seed_name']}\n")
-    output.append(f"#PBS -l select={pbs['nodes']}:ncpus={pbs['cpus']}:mem={pbs['memory']}GB\n#PBS -l walltime={pbs['walltime']}\n\n")
-    output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
-    
-    for task in pbs['tasks_seeds']:
-        if task[0].lower()  == 'bandstructure':
-            output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
-        if task[0].lower()  in ['bandstructure','singlepoint','spectral','geometryoptimization']:
-            output.append(f"PRGM={programs[task[2]]}\n\n")
-            if 'mod' in task[2]: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_mod.out\n\n")
-            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
-            output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
-        if task[0].lower == 'geometryoptimization':
-            output.append(f"{programs['geom2xyz']} {pbs['seed_name']}\n")
-        if task[0].lower()   == 'bandstructure':
-            output.append(f"cp {task[1]}.bands {task[1]}.bands.orig\n\n")
-            output.append("$PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
-        if task[0].lower()  == 'optados':
-            output.append(f"PRGM={programs[task[2]]}\n\n")
-            if task[1] != pbs['seed_name']: output.append(f"CASE_IN={pbs['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
-            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_od.out\n\n")
-            output.append(f"$PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
-        
-    with open(f"./structures/{pbs['seed_name']}/{pbs['seed_name']}.qsub", 'w') as f:
-        for line in output:
-            f.write(line)
-    return    
+def generate_workfct_input(task = None, **options):
+    directory = options['general']['directory']
+    seed = options['general']['seed']
+    lines = []
+    with open('./templates/template_workfunction.sh','r') as fr:
+        lines = fr.readlines()
+    for index,line in enumerate(lines):
+        if 'TEMPLATE' in line:
+            lines[index] = line.replace('TEMPLATE',f'{seed}')
+    with open(f'{directory}/{seed}_workfunction.sh','w') as fw:
+        fw.writelines(lines)
+    return
 
-def generate_castep_input(calc_struct='hello', **options): 
+def generate_castep_input(task, **options): 
     #based on the CASTEP calculator functionality. For documentation see 
     #https://wiki.fysik.dtu.dk/ase/ase/calculators/castep.html#module-ase.calculators.castep
     
@@ -127,12 +188,21 @@ def generate_castep_input(calc_struct='hello', **options):
     ##  symmetry (str): boolean value, defines if atoms in cell should be moved to determined symmetry sites
     ##  fix_all_cell (str): boolean value, defines if all the cell parameters should stay fixed during a optimisation run
     ##  continuation (bool): determines if the calculation is a continuation from a previous calc
-    
-    
+    tasks = {
+        'geometry' : 'Geometryoptimization',
+        'spectral' : 'Spectral',
+        'single' : 'Single Point',
+        'bands' : 'BandStructure',
+    }
+    #print(task)
+    castep_task = tasks[task]
+    calc_struct = options['structure']
     if not isinstance(calc_struct,ase.atoms.Atoms) and calc_struct != 'hello':
         
         calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
-    dict_options = options['general']
+    general = options['general']
+    directory = general['directory']
+    seed = general['seed']
     castep = options['castep']
     #print(calc_struct)
     # initialize the calculator instance
@@ -141,13 +211,13 @@ def generate_castep_input(calc_struct='hello', **options):
     calc._export_settings = False
     
     if options:
-        calc._directory = castep['directory']
+        calc._directory = directory
         calc._rename_existing_dir = False
-        calc._label = dict_options['seed']
+        calc._label = seed
         
         # Define parameter file options
-        calc.param.task = castep['task']
-        if castep['task'] == 'Spectral': 
+        calc.param.task = castep_task
+        if castep_task == 'Spectral': 
             calc.param.spectral_task = castep['spectral_task']
             if castep['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
         calc.param.xc_functional = castep['xc_functional']
@@ -167,14 +237,14 @@ def generate_castep_input(calc_struct='hello', **options):
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         # Define cell file options
         if castep['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
-        if castep['task'] == 'BandStructure':
+        if castep_task == 'BandStructure':
             band_path = calc_struct.cell.bandpath(castep['bandstruct_path'], density = castep['bandstruct_kpt_dist'])
             print(band_path)
             calc.set_bandpath(bandpath=band_path)
             calc.cell.bs_kpoint_path_spacing = castep['bandstruct_kpt_dist']
         calc.set_kpts(castep['kpoints'])
-        if castep['task'] == 'Spectral': calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']]) 
-        if castep['task'].lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
+        if castep_task == 'Spectral': calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']]) 
+        if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
         if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         
     # Prepare atoms and attach them to the current calculator
@@ -184,8 +254,8 @@ def generate_castep_input(calc_struct='hello', **options):
     calc_struct.calc.initialize()
     
     # The Cell file has to be modified to have the BS_Kpoint_Path in the right format for CASTEP
-    if castep['task'] == 'BandStructure':
-        with open(f"{castep['directory']}/{castep['seed_name']}.cell", 'r') as f:
+    if castep_task == 'BandStructure':
+        with open(f"{directory}/{seed}.cell", 'r') as f:
             lines = f.readlines()
         for i in range(len(lines)):
             if 'BS_KPOINT_LIST:' in lines[i]:
@@ -196,23 +266,38 @@ def generate_castep_input(calc_struct='hello', **options):
                 path += '%ENDBLOCK BS_KPOINT_PATH\n'
                 lines[i] = path
                 break
-        with open(f"{castep['directory']}/{castep['seed_name']}.cell", 'w') as f:
+        with open(f"{directory}/{seed}.cell", 'w') as f:
             for item in lines:
                 f.write(item)
     appendices = {
-        'geometryoptimization' : 'geom_opt',
-        'bandstructure' : 'bands',
-        'spectral' : 'spec',
-        'singlepoint' : 'sngl_pnt',
-    }    
-    for file in ['cell','param']: os.rename(f"{castep['directory']}/{castep['seed_name']}.{file}",f"{castep['directory']}/{castep['seed_name']}_{appendices[castep['task'].lower()]}.{file}")
-    
+        'geometry' : 'geometry',
+        'bands' : 'bands',
+        'spectral' : 'spectral',
+        'single' : 'single_point',
+    }
+    if options['general']['template_scripts']:
+        lines = []
+        with open(f'./templates/template_{appendices[task.lower()]}.sh','r') as fr:
+            lines = fr.readlines()
+        for index,line in enumerate(lines):
+            if 'TEMPLATE' in line:
+                lines[index] = line.replace('TEMPLATE',f'{seed}')
+        with open(f'{directory}/{seed}_{appendices[task.lower()]}.sh','w') as fw:
+            fw.writelines(lines)
+    # Rename the Files to allow seamless runs with appropriate shell files
+    for file in ['cell','param']: os.replace(f"{directory}/{seed}.{file}",f"{directory}/{seed}_{appendices[task.lower()]}.{file}")
     return;
 
-def generate_optados_input(path = None,**options):
-    tasks = options['optados']['optados_task']
-    output = [f"task : {tasks}\n"]
-    if options['optados']['optados_task'] != 'photoemission':
+def generate_optados_input(task,**options):
+    directory = options['general']['directory']
+    seed = options['general']['seed']
+    tasks = {
+        'fermi' : 'all',
+        'photo' : 'photoemission',
+        'photo_sweep' : 'photoemission',
+    }
+    output = [f"task : {tasks[task]}\n"]
+    if tasks[task] != 'photoemission':
         if options['optados']['optados_task'].lower() in ['pdos','all']:
             output.append(f"PDOS : {options['optados']['pdos']}\n")
         output.append(f"broadening : {options['optados']['broadening']}\n")
@@ -235,19 +320,33 @@ def generate_optados_input(path = None,**options):
                 continue
             output.append(f"{item} : {photo[item]}\n")
     appendices = {
-        'all' : 'all',
-        'photoemission' : 'photo',
+        'fermi' : 'optados_fermi',
+        'photo' : 'optados_photo',
+        'photo_sweep' : 'optados_photo_sweep',
         'pdos': 'pdos',
         'dos': 'dos',
     } 
-    if path == None:
-        with open(f"./structures/{options['optados']['seed_name']}/{options['optados']['seed_name']}_{appendices[tasks.lower()]}.odi", 'w') as f:
-            for line in output:
-                f.write(line)  
-    else:
-        with open(f"{path}_{appendices[tasks.lower()]}.odi", 'w') as f:
+    with open(f"{directory}/{seed}_{appendices[task]}.odi", 'w') as f:
             for line in output:
                 f.write(line)
+    if options['general']['template_scripts']:
+        lines = []
+        with open(f'./templates/template_{appendices[task]}.sh','r') as fr:
+            lines = fr.readlines()
+        if 'sweep' in task:
+            sweep_options = options['optados']['sweep_options']
+            numbers = [str(round(x,3)) for x in np.linspace(sweep_options['min'],sweep_options['max'],sweep_options['steps'])]
+            values = '('+' '.join(numbers)+')'
+        for index,line in enumerate(lines):
+            if 'TEMPLATE' in line:
+                lines[index] = line.replace('TEMPLATE',f'{seed}')
+            if 'sweep' in task:
+                if 'sweep_values=()' in line:
+                    lines[index] = line.replace('()',values)
+                if 's/.*photon_energy.*/photon_energy' in line:
+                    lines[index] = line.replace('photon_energy',sweep_options['parameter'])
+        with open(f'{directory}/{seed}_{appendices[task]}.sh','w') as fw:
+            fw.writelines(lines)
     return;
 
 def get_wulff_fractions(mat_structure:ase.atoms.Atoms, facets_energies : dict):
@@ -1105,3 +1204,52 @@ def get_adjusted_kpts(original, new, kpt = [1,1,1]):
             new_k[index] = 1
     return new_k;
 
+
+def generate_qsub_file(**options):
+    # IMPORTANT!!This function is very specific to the machine the generated file is intended for!
+    
+    # seed_name (str) : seed for input and output files for calculation
+    # queue (str) : dictionary key for the submission queue (see queues dict below)
+    # program (str) : dict key for the intended calculation program (see programs dict below)
+    # bandstructure (bool) : boolean, if bandstructure calculation is performed, it triggers post-processing of *.bands file
+    
+    
+    # !!Programs are specific to Cluster and User!!
+    programs = {
+        'castep_19':        '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--mpi/castep.mpi',
+        'castep_18':        '~/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi',
+        'castep_18_mod' :   '~/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi',
+        'orbitals2bands':   '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/orbitals2bands',
+        'optados':          '~/modules_codes/optados/optados.x',
+        'geom2xyz':         '~/modules_codes/CASTEP-19.11/obj/linux_x86_64_ifort17--serial/geom2xyz'
+    }
+    pbs = options['pbs']
+
+    output = ["#!/bin/bash  --login\n"]
+    output.append(f"#PBS -N {pbs['seed_name']}\n")
+    output.append(f"#PBS -l select={pbs['nodes']}:ncpus={pbs['cpus']}:mem={pbs['memory']}GB\n#PBS -l walltime={pbs['walltime']}\n\n")
+    output.append("cd $PBS_O_WORKDIR\n\nmodule load mpi intel-suite\n\n")
+    
+    for task in pbs['tasks_seeds']:
+        if task[0].lower()  == 'bandstructure':
+            output.append(f"PRGMO2B={programs['orbitals2bands']}\n\n")
+        if task[0].lower()  in ['bandstructure','singlepoint','spectral','geometryoptimization']:
+            output.append(f"PRGM={programs[task[2]]}\n\n")
+            if 'mod' in task[2]: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_mod.out\n\n")
+            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}.out\n\n")
+            output.append("mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT\n\n")
+        if task[0].lower == 'geometryoptimization':
+            output.append(f"{programs['geom2xyz']} {pbs['seed_name']}\n")
+        if task[0].lower()   == 'bandstructure':
+            output.append(f"cp {task[1]}.bands {task[1]}.bands.orig\n\n")
+            output.append("$PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
+        if task[0].lower()  == 'optados':
+            output.append(f"PRGM={programs[task[2]]}\n\n")
+            if task[1] != pbs['seed_name']: output.append(f"CASE_IN={pbs['seed_name']}\nCASE_OUT={task[1]}.out\n\n")
+            else: output.append(f"CASE_IN={task[1]}\nCASE_OUT={task[1]}_od.out\n\n")
+            output.append(f"$PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT\n\n")
+        
+    with open(f"./structures/{pbs['seed_name']}/{pbs['seed_name']}.qsub", 'w') as f:
+        for line in output:
+            f.write(line)
+    return    
