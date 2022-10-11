@@ -13,22 +13,22 @@ CASE_IN=TEMPLATE
 
 ########### Geometry Optimization ###########
 
-PRGM=~/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi
+PRGM=~/modules_codes/CASTEP-18.1_orig/obj/linux_x86_64_ifort17--mpi/castep.mpi
 
-cp ${CASE_IN}_geom.cell ${CASE_IN}.cell
-cp ${CASE_IN}_geom.param ${CASE_IN}.param
+cp ${CASE_IN}_geometry.cell ${CASE_IN}.cell
+cp ${CASE_IN}_geometry.param ${CASE_IN}.param
 
 CASE_OUT=${CASE_IN}.out
 
 mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT
-
+exit_code=$?
 if [ "$CONTINUE" == true ]; then
-    if [[ $? == 0 ]] ; then
+    if [[ exit_code == 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=geometry_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_all.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
         ./${CASE_IN}_submission.sh
     else
         sed -i '0,/.*STATE=.*/s//STATE=geometry_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_od_all.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
     fi
 fi

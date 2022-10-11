@@ -13,12 +13,12 @@ CASE_IN=TEMPLATE
 
 ########### Spectral Task ###########
 
-PRGM=~/modules_codes/CASTEP-18.1/obj/linux_x86_64_ifort17/castep.mpi
+PRGM=~/modules_codes/CASTEP-18.1_orig/obj/linux_x86_64_ifort17--mpi/castep.mpi
 
-cp ${CASE_IN}_spec.param ${CASE_IN}.param
-cp ${CASE_IN}_spec.cell ${CASE_IN}.cell
+cp ${CASE_IN}_spectral.param ${CASE_IN}.param
+cp ${CASE_IN}_spectral.cell ${CASE_IN}.cell
 
-CASE_OUT=${CASE_IN}_spec.out
+CASE_OUT=${CASE_IN}_spectral.out
 
 mpiexec $PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT
 
@@ -27,15 +27,15 @@ mpiexec $PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT
 
 PRGM=~/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi
 
-cp ${CASE_IN}_spec.param ${CASE_IN}.param
-cp ${CASE_IN}_spec.cell ${CASE_IN}.cell
+cp ${CASE_IN}_spectral.param ${CASE_IN}.param
+cp ${CASE_IN}_spectral.cell ${CASE_IN}.cell
 
-CASE_OUT=${CASE_IN}_spec.out
+CASE_OUT=${CASE_IN}_spectral.out
 
 mpiexec $PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT
 
 if [ "$CONTINUE" == true ]; then
-    if [[ $? == 0 ]] ; then
+    if [[ $exit_code == 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=spectral_success/' ${CASE_IN}_submission.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_spectral.sh
         ./${CASE_IN}_submission.sh

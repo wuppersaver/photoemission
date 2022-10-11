@@ -13,7 +13,7 @@ import json
 import os
 import math
 
-from wulffpack import SingleCrystal
+#from wulffpack import SingleCrystal
 
 from collections import defaultdict
 
@@ -76,8 +76,8 @@ def generate_scripts(**options):
     if [[ $INTERNAL == geometry_run ]]; then    
         sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
-        if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geom.param; then
-            echo "CONTINUATION" | tee -a ${CASE_IN}_geom.param
+        if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geometry.param; then
+            echo "CONTINUATION" | tee -a ${CASE_IN}_geometry.param
         fi
         echo "GeometryOptimization Continued"
         qsub ${calculation[geometry]}
@@ -90,19 +90,19 @@ def generate_scripts(**options):
             exit
         fi
     fi\n""",
-        'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_all_run/' ${calculation[submission]} 
+        'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_fermi_run/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_all]} 
         echo "OptaDOS misc"
         qsub ${calculation[optados_all]}
         exit
     fi\n""",
-        'Workfunction' : """        sed -i '0,/.*STATE=.*/s//STATE=wrkfct_run/' ${calculation[submission]} 
+        'Workfunction' : """        sed -i '0,/.*STATE=.*/s//STATE=workfct_run/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[work_fct]}
         echo "Setting Workfct and Volume/Area"
         qsub ${calculation[work_fct]}
         exit
     fi\n""",
-        'OD_Photo_Sweep': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${calculation[submission]} 
+        'OD_Photo_Sweep': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_run/' ${calculation[submission]} 
     sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
     echo "OptaDOS Photoemission Sweep"
     qsub ${calculation[optados_photo]}
@@ -136,7 +136,7 @@ fi\n"""
         'Spectral' : 'spectral',
         'OD_Fermi' : 'od_fermi',
         'Workfunction' : 'workfct',
-        'OD_Photo_Sweep' : 'od_photo',
+        'OD_Photo_Sweep' : 'od_photo_sweep',
         'BandStructure' : 'bands',
     }
     tasks = options['general']['tasks']
@@ -145,8 +145,8 @@ fi\n"""
     with open('./templates/template_submission.sh','r') as f:
         lines = f.readlines()
     for index,line in enumerate(lines):
-        if 'template' in line:
-            lines[index] = line.replace('template',f'{seed}')
+        if 'TEMPLATE' in line:
+            lines[index] = line.replace('TEMPLATE',f'{seed}')
     lines.append(blocks[tasks[0]])
     for index,task in enumerate(tasks[1:]):
         lines.append(f"    if [[ $INTERNAL == {task_shorts[tasks[index]]}_success ]]; then\n")
@@ -189,9 +189,9 @@ def generate_castep_input(task, **options):
     ##  fix_all_cell (str): boolean value, defines if all the cell parameters should stay fixed during a optimisation run
     ##  continuation (bool): determines if the calculation is a continuation from a previous calc
     tasks = {
-        'geometry' : 'Geometryoptimization',
+        'geometry' : 'GeometryOptimization',
         'spectral' : 'Spectral',
-        'single' : 'Single Point',
+        'single' : 'SinglePoint',
         'bands' : 'BandStructure',
     }
     #print(task)

@@ -56,7 +56,7 @@ def average_potential_from_file(input_file:str, potential = True):
     # np.savetxt(f'{path}{new_file}',results,delimiter=' ')
     return x_axis*plane_distance, y_axis, cell;
 
-def get_workfct(directory:str=None, bounds = None,centered:bool = True,mod_odi:bool = True):
+def get_workfct(directory:str=None, file_ending:str = '_photo.odi', bounds = None,centered:bool = True,mod_odi:bool = True):
     if directory == None:
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
@@ -87,12 +87,12 @@ def get_workfct(directory:str=None, bounds = None,centered:bool = True,mod_odi:b
     vacuum_level = np.mean(potential[indices[0]:indices[1]])
     if mod_odi:             
         for item in listOfFiles:
-            if '_photo.odi' in item:
+            if file_ending in item:
                 print('Writing work_function=', round(vacuum_level-fermi_level,5),f'eV to {item}')
                 subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
     return;
 
-def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = True):
+def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centered:bool = True,mod_odi:bool = True):
     if directory == None:
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
@@ -116,7 +116,7 @@ def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = Tru
     if not centered: slab_vol = area*np.linalg.norm(cell.matrix[2]) - slab_vol
     if mod_odi:             
         for item in listOfFiles:
-            if '_photo.odi' in item:
+            if file_ending in item:
                 print('Writing volume=', round(slab_vol,6), 'A^3 and area=', round(area,5),f'A^2 to {item}')
                 subprocess.call(f'sed -i "s/.*surface_area.*/surface_area : {round(area,5)}/" {directory}{item}',shell=True)
                 subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
@@ -124,5 +124,6 @@ def get_area_volume(directory:str==None, centered:bool = True,mod_odi:bool = Tru
 
 if __name__ == "__main__":
     input_path = '/rds/general/user/fcm19/home/PhD/photoemission/structures/Cu_surf_100_victor_60A_new/'
-    get_workfct(directory=input_path, centered=False)
-    get_area_volume(directory=input_path, centered=False)
+    file_ending = '_photo_sweep.odi',
+    get_workfct(directory=input_path, file_ending, centered=False)
+    get_area_volume(directory=input_path, file_ending, centered=False)
