@@ -79,5 +79,4 @@ class PhotoemissionCalculation:
         if general_options == None : general_options = GeneralOptions
         if castep_options == None : castep_options = CastepOptions
         if optados_options == None : optados_options = OptaDosOptions
-        self.options = {'general':GeneralOptions,'structure':structure,'castep':CastepOptions,'optados':OptaDosOptions}
-
+        self.options = {'general':general_options,'structure':structure,'castep':castep_options,'optados':optados_options}
