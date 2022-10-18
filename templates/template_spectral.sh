@@ -35,8 +35,9 @@ cp ${CASE_IN}_spectral.cell ${CASE_IN}.cell
 CASE_OUT=${CASE_IN}_spectral.out
 
 mpiexec $PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT
-
+exit_code=$?
 cp ${CASE_IN}.bands ${CASE_IN}.bands.spec.mod
+echo the_exit_code=$exit_code
 
 if [ "$CONTINUE" == true ]; then
     if [[ $exit_code == 0 ]] ; then

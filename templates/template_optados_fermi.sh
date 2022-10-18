@@ -22,6 +22,7 @@ CASE_OUT=${CASE_IN}_od_fermi.out
 $PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT
 exit_code=$?
 mv ${CASE_IN}.odo ${CASE_IN}_fermi.odo
+echo the_exit_code=$exit_code
 
 if [ "$CONTINUE" == true ]; then
     if [[ $exit_code == 0 ]] ; then

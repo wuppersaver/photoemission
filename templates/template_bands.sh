@@ -28,6 +28,7 @@ exit_code=$?
 cp ${CASE_IN}.bands ${CASE_IN}.bands.orig
 
 $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT
+echo the_exit_code=$exit_code
 
 if [ "$CONTINUE" == true ]; then
     echo $exit_code
