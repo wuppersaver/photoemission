@@ -103,9 +103,9 @@ def generate_scripts(**options):
         exit
     fi\n""",
         'OD_Photo_Sweep': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_run/' ${calculation[submission]} 
-    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
+    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo_sweep]}
     echo "OptaDOS Photoemission Sweep"
-    qsub ${calculation[optados_photo]}
+    qsub ${calculation[optados_photo_sweep]}
     exit
     fi\n""",
         'BandStructure': """    sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${calculation[submission]} 

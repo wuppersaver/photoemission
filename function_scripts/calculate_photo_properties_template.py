@@ -57,7 +57,7 @@ def average_potential_from_file(input_file:str, potential = True):
     # np.savetxt(f'{path}{new_file}',results,delimiter=' ')
     return x_axis*plane_distance, y_axis, cell;
 
-def get_workfct(directory:str=None, file_ending:str = '_photo.odi', bounds = None,centered:bool = True,mod_odi:bool = True):
+def get_workfct(directory:str=None, file_ending:str = '_optados_photo_sweep.odi', bounds = None,centered:bool = True,mod_odi:bool = True):
     if directory == None:
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
@@ -68,12 +68,12 @@ def get_workfct(directory:str=None, file_ending:str = '_photo.odi', bounds = Non
             found = 1
             path = directory + item
             x, potential,cell = average_potential_from_file(path, potential = True)
-        if '_all.odo' in item:   
+        if '_fermi.odo' in item:   
             odo_pth = directory + item
             fermi_level = OptaDOSOutput(odo_pth).fermi_e
             found = 0
     if found != 0: 
-        file = ['Opatdos File (_all.odo)','Potential File (.pot_fmt)']
+        file = ['Opatdos File (_fermi.odo)','Potential File (.pot_fmt)']
         raise OSError(2, f'No {file[found-1]} found!')
     indices = [0,0]
     stepsize = x[1] - x[0]
