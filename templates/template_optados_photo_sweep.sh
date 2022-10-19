@@ -42,7 +42,7 @@ done
 exit_code=$?
 if [ "$CONTINUE" == true ]; then
     echo $exit_code
-    if [[ exit_code == 0 ]] ; then
+    if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_success/' ${CASE_IN}_submission.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_photo_sweep.sh
         ./${CASE_IN}_submission.sh

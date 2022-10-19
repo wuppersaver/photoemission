@@ -17,10 +17,12 @@ CASE_IN=TEMPLATE
 sed -i 's,input_path =.*,'"input_path = \'$(pwd)\/\'"',' ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
 
 python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
+
 exit_code=$?
 echo the_exit_code=$exit_code
+
 if [ "$CONTINUE" == true ]; then
-    if [[ $exit_code == 0 ]] ; then
+    if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=workfct_success/' ${CASE_IN}_submission.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_workfunction.sh
         ./${CASE_IN}_submission.sh
