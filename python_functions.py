@@ -197,7 +197,7 @@ def generate_castep_input(task, **options):
     #print(task)
     castep_task = tasks[task]
     calc_struct = options['structure']
-    if not isinstance(calc_struct,ase.atoms.Atoms) and calc_struct != 'hello':
+    if not isinstance(calc_struct,ase.atoms.Atoms):
         
         calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
     general = options['general']
