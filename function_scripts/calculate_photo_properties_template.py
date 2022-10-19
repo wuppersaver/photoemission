@@ -1,6 +1,7 @@
 import subprocess
 import numpy as np
 import os
+import sys
 from pymatgen.core import Lattice
 import json
 import matplotlib.pyplot as plt
@@ -93,6 +94,7 @@ def get_workfct(directory:str=None, file_ending:str = '_photo.odi', bounds = Non
     return;
 
 def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centered:bool = True,mod_odi:bool = True):
+    """This function gets the volume of a slab in a cell by analysing the electron density in the cell. """
     if directory == None:
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
@@ -104,7 +106,7 @@ def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centere
             x, density,cell = average_potential_from_file(path, potential = False)
             found = True
     if not found: raise OSError(2, 'No Density File (.den_fmt) found!')
-    seed = path.split('/')[-1].split('.')[-2]
+    #seed = path.split('/')[-1].split('.')[-2]
     area = np.linalg.norm(np.cross(cell.matrix[0],cell.matrix[1]))
     rel_density = density / max(density)
     boundaries = []
@@ -123,7 +125,9 @@ def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centere
     return;
 
 if __name__ == "__main__":
-    input_path = '/rds/general/user/fcm19/home/PhD/photoemission/structures/Cu_surf_100_victor_60A_new/'
-    file_ending = '_photo_sweep.odi',
-    get_workfct(directory=input_path, file_ending, centered=False)
-    get_area_volume(directory=input_path, file_ending, centered=False)
+    input_path = str(sys.argv[1])
+    file_ending = str(sys.argv[2])
+    #input_path = '/rds/general/user/fcm19/home/PhD/photoemission/structures/Cu_surf_100_victor_60A_new/'
+    #file_ending = '_optados_photo_sweep.odi',
+    get_workfct(directory=input_path, file_ending = file_ending, centered=False)
+    get_area_volume(directory=input_path, file_ending = file_ending, centered=False)

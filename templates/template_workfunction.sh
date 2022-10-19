@@ -14,9 +14,9 @@ CASE_IN=TEMPLATE
 
 ########### Python Script ###########
 
-sed -i 's,input_path =.*,'"input_path = \'$(pwd)\/\'"',' ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
-
-python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
+#sed -i 's,input_path =.*,'"input_path = \'$(pwd)\/\'"',' ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
+file_ending='_optados_photo_sweep.odi'
+python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd) 
 
 exit_code=$?
 echo the_exit_code=$exit_code
