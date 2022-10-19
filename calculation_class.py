@@ -71,8 +71,8 @@ class PhotoemissionCalculation:
             'sweep_options': {
                 'parameter' : 'photon_energy', # choose photon_energy or temp or elec_field or work_function
                 'min' : 4,
+                'stepsize' : 0.1,
                 'max' : 5.5,
-                'steps' : 5,
                 },
         }
         if structure == None : structure = fcc111('Cu', size=(1,1,5), vacuum=20.0)

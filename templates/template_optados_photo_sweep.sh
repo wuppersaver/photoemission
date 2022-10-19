@@ -15,7 +15,7 @@ CASE_IN=TEMPLATE
 
 OPTADOS=/rds/general/user/fcm19/home/modules_codes/optados/optados.x
 
-sweep_values=()
+sweep_values=seq -f "%'.5f" ___
 
 cp ${CASE_IN}_optados_photo_sweep.odi ${CASE_IN}.odi
 
