@@ -171,7 +171,14 @@ fi\n"""
     lines.append(blocks['final'])
     with open(f'{directory}/{seed}_submission.sh','w') as fw:
         fw.writelines(lines)
-    return
+        for task in tasks:
+            if 'photo' in task:
+                with open(f'{directory}/{seed}_workfunction.sh','rw') as fr:
+                    lines = fr.readlines()
+                    for index,line in enumerate(lines):
+                        if '' in line:
+                            line[index] = line.replace('___',f'_{task_shorts[task]}.odi')
+        return
 
 def generate_workfct_input(task = None, **options):
     directory = options['general']['directory']
