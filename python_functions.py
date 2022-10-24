@@ -99,7 +99,6 @@ def generate_scripts(**options):
             echo "Spectral"
             qsub ${calculation[spectral]}
             exit
-        fi
     fi\n""",
         'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_fermi_run/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_all]} 
