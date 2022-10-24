@@ -1145,7 +1145,8 @@ done\n\n")
 
 def read_photonsweep_outputs(path:str = None, seed:str = None):
     '''
-    This function reads in the output files from a series of optados calculations
+    This function reads in the output files from a series of optados calculations. Supply either a calculation seed
+    or a path to the directory with the files.
     '''
     # create array of the cell volumes, and total energies
     data = {} 
