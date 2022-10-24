@@ -99,7 +99,6 @@ def generate_scripts(**options):
             echo "Spectral"
             qsub ${calculation[spectral]}
             exit
-        fi
     fi\n""",
         'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_fermi_run/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_all]} 
@@ -172,7 +171,14 @@ fi\n"""
     lines.append(blocks['final'])
     with open(f'{directory}/{seed}_submission.sh','w') as fw:
         fw.writelines(lines)
-    return
+        for task in tasks:
+            if 'photo' in task:
+                with open(f'{directory}/{seed}_workfunction.sh','rw') as fr:
+                    lines = fr.readlines()
+                    for index,line in enumerate(lines):
+                        if '' in line:
+                            line[index] = line.replace('___',f'_{task_shorts[task]}.odi')
+        return
 
 def generate_workfct_input(task = None, **options):
     directory = options['general']['directory']
@@ -444,22 +450,19 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
         directory = f'./structures/' 
     if directory[-1] != '/': directory += '/'
     listOfFiles = os.listdir(directory)
-    found = [False,False]
+    found = 2
     for item in listOfFiles:
         if '.pot_fmt' in item and not '.dat' in item:
-            found[0] = True
+            found -= 1
             path = directory + item
             x, potential,cell = average_potential_from_file(path, potential = True)
-        if '_all.odo' in item:   
+        if '_fermi.odo' in item:   
             odo_pth = directory + item
             fermi_level = OptaDOSOutput(odo_pth).fermi_e
-            found[1] = True
-        if False not in found: break
-    if False in found: 
-        file = ['Potential File (.pot_fmt)','Opatdos File (_all.odo)']
-        for item in found: 
-            if item == False:
-                raise OSError(2, f'No {file[found.index[item]]} found!')
+            found -= 1
+    if found != 0: 
+        file = [' Potential File (.pot_fmt)',' Opatdos File (_all.odo)','ne of either files']
+        raise OSError(2, f'No{file[found]} found!')    
     indices = [0,0]
     stepsize = x[1] - x[0]
     if not centered and bounds == None: bounds = [(x[-1]/2)-1,(x[-1]/2)+1]
@@ -584,7 +587,7 @@ def read_bands2pmg(path:str=None, export = False):
                             for i in range(num_bands):
                                 eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
     for item in listOfFiles: 
-        if '_geom.cell' in item or '.cell' in item: 
+        if '_geometry.cell' in item or '.cell' in item: 
             cell_item=item
     kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'{path}{cell_item}')).get_primitive_standard_structure()) #Should use the Setyawan-Curtarolo Convention
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
@@ -611,7 +614,7 @@ def read_cell2pmg(path:str):
     with open(path,'r') as f:
         for line in f:
             line = line.strip()
-            if '%BLOCK LATTICE_CART' in line:
+            if '%BLOCK LATTICE_CART' in line or '%BLOCK lattice_cart' in line:
                 for i in range(3):
                     temp = next(f).strip().split()
                     for j in range(len(temp)):
@@ -621,7 +624,7 @@ def read_cell2pmg(path:str):
                 axes = [float(i) for i in next(f).strip().split()]
                 angles = [float(i) for i in next(f).strip().split()]
                 #print(axes,angles)
-                lattice_obj = Lattice.from_parameters(axes[0], axes[1], axes[2], angles[0], angles[1], angles[2])
+                lattice_obj = Lattice.from_parameters(a= axes[0], b=axes[1], c = axes[2], alpha = angles[0], beta = angles[1], gamma = angles[2])
             if '%BLOCK POSITIONS_ABS' in line:
                 while True:
                     temp = next(f).strip().split()
@@ -631,7 +634,7 @@ def read_cell2pmg(path:str):
                     coords.append([float(temp[1]),float(temp[2]),float(temp[3])])
                 cartesian = True
                 break
-            if '%BLOCK POSITIONS_FRAC' in line:
+            if '%BLOCK POSITIONS_FRAC' in line or '%BLOCK positions_frac' in line:
                 while True:
                     temp = next(f).strip().split()
                     if temp[0] == '%ENDBLOCK':
