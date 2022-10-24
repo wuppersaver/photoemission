@@ -691,12 +691,93 @@ def append_symm_line(base_bandstruct, line_to_add):
     
     return BandStructureSymmLine(kpoints, eigenvalues, base_bandstruct.lattice_rec, base_dict['efermi'], base_dict['labels_dict']);
 
-def plot_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False):
+def read_dos_optados(path:str=None, export_json = False):
+    energies, up, down, total, max_value = [],[],[],[],[]
+    columns =[]
+    up_total = 0
+    down_total = 0
+    shift_efermi = True
+    if path[-1] != '/':
+        path = path + '/'
+    if path == None:
+        path = f'./structures/' 
+    listOfFiles = os.listdir(path)
+    for item in listOfFiles:
+        if '.adaptive.dat' in item or '.linear.dat' in item:
+            seed = item.split('.')[-3]
+            with open(f'{path}{item}','r') as f:
+                line = next(f)
+                while '#' in line:
+                    values = line.strip().split()
+                    if 'Column' in values:
+                        column = next(f).strip().split()
+                        while len(column) > 1:
+                            columns.append([column[1],' '.join(column[2:])])
+                            column = next(f).strip().split()
+                    line = next(f) 
+                for line in f:
+                    values = line.strip().split()
+                    if len(columns) > 3:
+                        energies.append(float(values[0]))
+                        up.append(float(values[1]))
+                        down.append(float(values[2]))
+                        total.append(float(values[1])-float(values[2]))
+                    else:
+                        energies.append(float(values[0]))
+                        total.append(float(values[1]))
+                        #up_total = float(values[3])
+                        #down_total = float(values[4])
+        if '_fermi.odo' in item:
+            with open(f'{path}{item}','r') as o:
+                for line in o:
+                    line = line.strip()
+                    if 'Setting Fermi Energy' in line:
+                        temp = next(o).strip().split()
+                        #print(temp)
+                        efermi = float(temp[6])
+                        break
+        if '_fermi.odi' in item:
+            with open(f'{path}{item}','r') as i:
+                for line in i:
+                    line = line.strip()
+                    if 'SET_EFERMI_ZERO' in line:
+                        temp = line.split()
+                        if temp[2].lower() in ['false','.false.']:
+                            shift_efermi = False
+                        break
+    if len(columns) > 3:
+        max_value.append(max(up))
+        max_value.append(max(down))
+    max_value.append(max(total))
+    
+    total_density = {Spin.up : total}
+    
+    if export_json:
+        combined_densities =  {Spin.up : up, Spin.down : down}
+        if shift_efermi: 
+            output_dos = Dos(0, energies,combined_densities)
+            total_out = Dos(0, energies, total_density)
+        else:
+            output_dos = Dos(efermi, energies, combined_densities)
+            
+        with open(f'./structures/jsons/DOS/{seed}_total.json', 'w') as f:
+            json.dump(output_dos.as_dict(), f)
+    
+    if shift_efermi:
+            energies = [item - efermi for item in energies]
+    data = {
+        'energy' : energies,
+        'up' : up,
+        'down' : down,
+        'total' : total,
+        'max': max_value,
+    }
+    return data;
+
+def plot_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False, get_data = False):
     energies, up, down, total, max_value = [],[],[],[],[]
     up_total = 0
     down_total = 0
-    plt.style.use('seaborn-darkgrid')
-    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
     shift_efermi = True
     if path[-1] != '/':
         path = path + '/'
@@ -717,26 +798,24 @@ def plot_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False,
                         total.append(float(values[1])-float(values[2]))
                         #up_total = float(values[3])
                         #down_total = float(values[4])
-        if '.odo' in item:
+        if '_fermi.odo' in item:
             with open(f'{path}{item}','r') as o:
                 for line in o:
                     line = line.strip()
                     if 'Setting Fermi Energy' in line:
                         temp = next(o).strip().split()
+                        #print(temp)
                         efermi = float(temp[6])
                         break
-        if '.odi' in item:
+        if '_fermi.odi' in item:
             with open(f'{path}{item}','r') as i:
                 for line in i:
                     line = line.strip()
                     if 'SET_EFERMI_ZERO' in line:
                         temp = line.split()
-                        if temp[2] in ['false','FALSE','False','.false.']:
+                        if temp[2].lower() in ['false','.false.']:
                             shift_efermi = False
                         break
-    
-    ax.set(xlim = [energies[0],energies[-1]], xlabel = 'Energy [eV]', ylabel = 'DOS', yticks = [], title = f'DOS Plot for {seed}')
-    ax.axhline(0, c = 'gray')
     
     if plot_up:
         max_value.append(max(up))
@@ -744,6 +823,24 @@ def plot_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False,
         max_value.append(max(down))
     if plot_total:
         max_value.append(max(total))
+    
+    if get_data:
+        if shift_efermi:
+            energies = [item - efermi for item in energies]
+        data = {
+            'energy' : energies,
+            'up' : up,
+            'down' : down,
+            'total' : total,
+            'max': max_value,
+        }
+        return data;
+
+    plt.style.use('seaborn-darkgrid')
+    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    
+    ax.set(xlim = [energies[0],energies[-1]], xlabel = 'Energy [eV]', ylabel = 'DOS', yticks = [], title = f'DOS Plot for {seed}')
+    ax.axhline(0, c = 'gray')
     
     if shift_efermi:
         ax.axvline(0, c = '0', ls = '--', alpha = 0.8)
@@ -794,8 +891,8 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
      # create output classes for each of the output files
     found=[False,False]
     for item in listOfFiles:
-        if '_all.odo' in item:
-            seed = item.replace('_all.odo','')
+        if '_fermi.odo' in item:
+            seed = item.replace('_fermi.odo','')
             with open(path + item,'r') as g:
                 for line in g:
                     if 'Shift energy scale so fermi_energy=0' in line: shifted_efermi = bool(line.split()[7]=='True')
@@ -885,9 +982,9 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
     }
     return data; 
 
-def plot_proj_dos_optados(data:dict=None,plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None):
+def plot_proj_dos_optados(data:dict=None,plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None,figsize = (12,5)):
     plt.style.use('seaborn-darkgrid')
-    fig, ax = plt.subplots(1,1, figsize = (12,5), dpi = 300)
+    fig, ax = plt.subplots(1,1, figsize = figsize, dpi = 300)
     if plot_total: ax.plot(data['energies'], data['total'], label = f"{atom}-total", alpha = 0.8,lw = 1)
     for atom in data['projections'].keys():
         for orbital in data['projections'][atom]:
