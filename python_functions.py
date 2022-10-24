@@ -51,18 +51,29 @@ def get_qe(optados_output):
 
 def generate_input_files(**options):
     task_functions = {
-        'Geometry' : generate_castep_input('geometry',**options),
-        'Spectral' : generate_castep_input('spectral',**options),
-        'OD_Fermi' : generate_optados_input('fermi',**options),
-        'Workfunction' : generate_workfct_input('',**options),
-        'OD_Photo_Sweep' : generate_optados_input('photo_sweep',**options),
-        'BandStructure' : generate_castep_input('bands',**options),
+        'Geometry' : generate_castep_input,
+        'Spectral' : generate_castep_input,
+        'OD_Fermi' : generate_optados_input,
+        'Workfunction' : generate_workfct_input,
+        'OD_Photo' : generate_optados_input,
+        'OD_Photo_Sweep' : generate_optados_input,
+        'BandStructure' : generate_castep_input,
+    }
+    task_keywords = {
+        'Geometry' : 'geometry',
+        'Spectral' : 'spectral',
+        'OD_Fermi' : 'fermi',
+        'Workfunction' : '',
+        'OD_Photo' : 'photo',
+        'OD_Photo_Sweep' : 'photo_sweep',
+        'BandStructure' : 'bands',
     }
     general = options['general']
     for task in general['tasks']:
-        current = task_functions.get(task, lambda: 'Invalid')
+        #print(task)
+        task_functions[task](task_keywords[task],**options)
     if general['template_scripts'] : generate_scripts(**options)
-    return
+    return;
 
 
 def generate_scripts(**options):
@@ -102,6 +113,12 @@ def generate_scripts(**options):
         qsub ${calculation[work_fct]}
         exit
     fi\n""",
+        'OD_Photo': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${calculation[submission]} 
+    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
+    echo "OptaDOS Photoemission Calculation"
+    qsub ${calculation[optados_photo]}
+    exit
+    fi\n""",
         'OD_Photo_Sweep': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_run/' ${calculation[submission]} 
     sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo_sweep]}
     echo "OptaDOS Photoemission Sweep"
@@ -136,6 +153,7 @@ fi\n"""
         'Spectral' : 'spectral',
         'OD_Fermi' : 'od_fermi',
         'Workfunction' : 'workfct',
+        'OD_Photo' : 'od_photo',
         'OD_Photo_Sweep' : 'od_photo_sweep',
         'BandStructure' : 'bands',
     }
@@ -198,7 +216,6 @@ def generate_castep_input(task, **options):
     castep_task = tasks[task]
     calc_struct = options['structure']
     if not isinstance(calc_struct,ase.atoms.Atoms):
-        
         calc_struct = AseAtomsAdaptor().get_atoms(calc_struct)
     general = options['general']
     directory = general['directory']
@@ -206,15 +223,16 @@ def generate_castep_input(task, **options):
     castep = options['castep']
     #print(calc_struct)
     # initialize the calculator instance
-    calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=3)
+    calc = ase.calculators.castep.Castep(check_castep_version = False,keyword_tolerance=1)
     # include interface settings in .param file
     calc._export_settings = False
+    calc._check_checkfile = False
     
     if options:
         calc._directory = directory
         calc._rename_existing_dir = False
         calc._label = seed
-        
+                
         # Define parameter file options
         calc.param.task = castep_task
         if castep_task == 'Spectral': 
@@ -225,21 +243,26 @@ def generate_castep_input(task, **options):
         calc.param.smearing_width = str(castep['smearing_width']) + ' K'
         calc.param.cut_off_energy = str(castep['energy_cutoff']) + ' eV'
         calc.param.elec_energy_tol = str(castep['elec_energy_tol']) + ' eV'
-        if castep['extra_bands']: calc.param.perc_extra_bands = '100'
+        if castep['extra_bands']: calc.param.perc_extra_bands = str(castep['percent_extra_bands'])
         calc.param.max_scf_cycles = str(castep['max_scf_cycles'])
-        if castep['fix_occup']: calc.param.fix_occupancy = 'TRUE'
+        if castep['fix_occup']: 
+            calc.param.fix_occupancy = 'TRUE'
+            calc.param.metals_method = castep['metals_method']
         if castep['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
         else: calc.param.spin_polarized = 'FALSE'
         if castep['write_potential']: calc.param.write_formatted_potential = 'TRUE'
         if castep['write_density']: calc.param.write_formatted_density = 'TRUE'
         if castep['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = castep['mixing_scheme']
-        if castep['continuation']: calc.param.continuation = 'Default'  
+        special_cont = castep_task.lower() in ["bandstructure","spectral"] and "geometry" in [x.lower() for x in options['general']['tasks']]
+        if castep['continuation'] or special_cont: 
+            calc.param.continuation = 'Default'
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
+        
         # Define cell file options
         if castep['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
         if castep_task == 'BandStructure':
             band_path = calc_struct.cell.bandpath(castep['bandstruct_path'], density = castep['bandstruct_kpt_dist'])
-            print(band_path)
+            #print(band_path)
             calc.set_bandpath(bandpath=band_path)
             calc.cell.bs_kpoint_path_spacing = castep['bandstruct_kpt_dist']
         calc.set_kpts(castep['kpoints'])
@@ -257,18 +280,19 @@ def generate_castep_input(task, **options):
     if castep_task == 'BandStructure':
         with open(f"{directory}/{seed}.cell", 'r') as f:
             lines = f.readlines()
-        for i in range(len(lines)):
-            if 'BS_KPOINT_LIST:' in lines[i]:
-                path_list = list(lines[i].replace('BS_KPOINT_LIST: ', '').replace('[','').replace(']', '').replace("'", '').replace('\n','').split(', '))
+        for index, line in enumerate(lines):
+            if 'BS_KPOINT_LIST:' in line:
+                path_list = list(lines[index].replace('BS_KPOINT_LIST: ', '').replace('[','').replace(']', '').replace("'", '').replace('\n','').split(', '))
                 path = '%BLOCK BS_KPOINT_PATH\n'
                 for point in path_list:
                     path += point + '\n'
                 path += '%ENDBLOCK BS_KPOINT_PATH\n'
-                lines[i] = path
+                lines[index] = path
                 break
         with open(f"{directory}/{seed}.cell", 'w') as f:
             for item in lines:
                 f.write(item)
+    # Replacing the TEMPLATE in the template scripts for smooth operations
     appendices = {
         'geometry' : 'geometry',
         'bands' : 'bands',
@@ -297,6 +321,7 @@ def generate_optados_input(task,**options):
         'photo_sweep' : 'photoemission',
     }
     output = [f"task : {tasks[task]}\n"]
+    #print(tasks[task])
     if tasks[task] != 'photoemission':
         if options['optados']['optados_task'].lower() in ['pdos','all']:
             output.append(f"PDOS : {options['optados']['pdos']}\n")
@@ -335,15 +360,22 @@ def generate_optados_input(task,**options):
             lines = fr.readlines()
         if 'sweep' in task:
             sweep_options = options['optados']['sweep_options']
-            values = ' '.join(list(sweep_options.values())[1:])
+            values = ' '.join([str(x) for x in list(sweep_options.values())[1:]])
         for index,line in enumerate(lines):
             if 'TEMPLATE' in line:
                 lines[index] = line.replace('TEMPLATE',f'{seed}')
+                                  
             if 'sweep' in task:
                 if "sweep_values=seq -f \"%'.5f\"" in line:
                     lines[index] = line.replace('___',values)
                 if 's/.*photon_energy.*/photon_energy' in line:
                     lines[index] = line.replace('photon_energy',sweep_options['parameter'])
+            else:
+                if 'models=' in line:
+                    lines[index] = line.replace('___','('+' '.join(options['optados']['photo_options']['photo_model'])+')')
+                if 'energy=' in line:
+                    lines[index] = line.replace('___',str(options['optados']['photo_options']['photon_energy']))
+        
         with open(f'{directory}/{seed}_{appendices[task]}.sh','w') as fw:
             fw.writelines(lines)
     return;
