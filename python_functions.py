@@ -335,14 +335,13 @@ def generate_optados_input(task,**options):
             lines = fr.readlines()
         if 'sweep' in task:
             sweep_options = options['optados']['sweep_options']
-            numbers = [str(round(x,3)) for x in np.linspace(sweep_options['min'],sweep_options['max'],sweep_options['steps'])]
-            values = '('+' '.join(numbers)+')'
+            values = ' '.join(list(sweep_options.values())[1:])
         for index,line in enumerate(lines):
             if 'TEMPLATE' in line:
                 lines[index] = line.replace('TEMPLATE',f'{seed}')
             if 'sweep' in task:
-                if 'sweep_values=()' in line:
-                    lines[index] = line.replace('()',values)
+                if "sweep_values=seq -f \"%'.5f\"" in line:
+                    lines[index] = line.replace('___',values)
                 if 's/.*photon_energy.*/photon_energy' in line:
                     lines[index] = line.replace('photon_energy',sweep_options['parameter'])
         with open(f'{directory}/{seed}_{appendices[task]}.sh','w') as fw:
