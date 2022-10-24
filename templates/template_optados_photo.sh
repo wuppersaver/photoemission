@@ -8,8 +8,8 @@ cd $PBS_O_WORKDIR
 module load intel-suite
 
 CONTINUE=false
-model=1step
-energy=3.5
+models=___
+energy=___
 CASE_IN=TEMPLATE
 
 ########### OptaDOS Photoemission ###########
@@ -17,12 +17,17 @@ CASE_IN=TEMPLATE
 OPTADOS=/rds/general/user/fcm19/home/modules_codes/optados/optados.x
 
 cp ${CASE_IN}_optados_photo.odi ${CASE_IN}.odi
+
 CASE_OUT=${CASE_IN}_${energy}_${model}.out
 
-$OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
-exit_code=$?
+for model in ${models[@]}
+do
+    sed -i "s/.*photo_model.*/photo_model : $model/" ${CASE_IN}.odi
+    $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
+    exit_code=$?
 
-mv ${CASE_IN}.odo ${CASE_IN}_${energy}_${model}.odo
+    mv ${CASE_IN}.odo ${CASE_IN}_${energy}_${model}.odo
+done
 
 if [ "$CONTINUE" == true ]; then
     echo $exit_code

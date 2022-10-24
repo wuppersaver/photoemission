@@ -1,6 +1,6 @@
 #!/bin/bash  --login
 #PBS -N TEMPLATE_geom
-#PBS -l select=1:ncpus=64:mem=200GB
+#PBS -l select=1:ncpus=64:mem=250GB
 #PBS -l walltime=06:00:00
 
 cd $PBS_O_WORKDIR

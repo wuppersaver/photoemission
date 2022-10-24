@@ -10,6 +10,7 @@ calculation[bands]=${CASE_IN}_bands.sh
 calculation[optados_all]=${CASE_IN}_optados_fermi.sh
 calculation[work_fct]=${CASE_IN}_workfunction.sh
 calculation[optados_photo_sweep]=${CASE_IN}_optados_photo_sweep.sh
+calculation[optados_photo]=${CASE_IN}_optados_photo.sh
 calculation[submission]=${CASE_IN}_submission.sh
 
 if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
