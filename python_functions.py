@@ -548,7 +548,7 @@ def read_bands2pmg(path:str=None, export = False):
     listOfFiles = os.listdir(path)
      # create output classes for each of the output files
     for item in listOfFiles:
-        if '.bands' in item and '.orig' not in item and '.o2b' not in item:
+        if '.bands' in item[-6:] and '.orig' not in item and '.o2b' not in item:
             seed = item.replace('.bands','')
             with open(f'{path}{item}','r') as f:
                 for line in f:
@@ -571,7 +571,8 @@ def read_bands2pmg(path:str=None, export = False):
                         next(f)
                         for i in range(3):
                             line = next(f)
-                            cell.append([float(x) for x in line])
+                            print(line)
+                            cell.append([float(x) for x in line.split()])
                         print(cell)
                         lattice_obj = Lattice(cell)
 
@@ -587,7 +588,7 @@ def read_bands2pmg(path:str=None, export = False):
                             for i in range(num_bands):
                                 eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
     for item in listOfFiles: 
-        if '_geometry.cell' in item or '.cell' in item: 
+        if '_geometry.cell' in item: 
             cell_item=item
     kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'{path}{cell_item}')).get_primitive_standard_structure()) #Should use the Setyawan-Curtarolo Convention
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
