@@ -569,10 +569,10 @@ def read_bands2pmg(path:str=None, export = False):
                             eigenvalues[Spin.down] = np.zeros([num_bands, num_kpoints])
 
                         next(f)
-                        cell.append([float(x) for x in next(f).split()])
-                        cell.append([float(x) for x in next(f).split()])
-                        cell.append([float(x) for x in next(f).split()])
-                        #print(cell)
+                        for i in range(3):
+                            line = next(f)
+                            cell.append([float(x) for x in line])
+                        print(cell)
                         lattice_obj = Lattice(cell)
 
                     if line.split()[0] == 'K-point':
