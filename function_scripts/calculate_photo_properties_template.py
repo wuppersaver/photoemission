@@ -91,6 +91,8 @@ def get_workfct(directory:str=None, file_ending:str = '_optados_photo_sweep.odi'
             if file_ending in item:
                 print('Writing work_function=', round(vacuum_level-fermi_level,5),f'eV to {item}')
                 subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
+    else:
+        print('vacuum level = ', round(vacuum_level,5),f' eV, fermi level = ', round(fermi_level,5), ' eV.')
     return;
 
 def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centered:bool = True,mod_odi:bool = True):
@@ -122,12 +124,15 @@ def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centere
                 print('Writing volume=', round(slab_vol,6), 'A^3 and area=', round(area,5),f'A^2 to {item}')
                 subprocess.call(f'sed -i "s/.*surface_area.*/surface_area : {round(area,5)}/" {directory}{item}',shell=True)
                 subprocess.call(f'sed -i "s/.*slab_volume.*/slab_volume : {round(slab_vol,6)}/" {directory}{item}',shell=True)
+    else:
+        print('volume = ', round(slab_vol,6), 'A^3 and area = ', round(area,5),f' A^2')
     return;
 
 if __name__ == "__main__":
     input_path = str(sys.argv[1])
     file_ending = str(sys.argv[2])
+    mod_odi = 'yes' in str(sys.argv[3]).lower()
     #input_path = '/rds/general/user/fcm19/home/PhD/photoemission/structures/Cu_surf_100_victor_60A_new/'
     #file_ending = '_optados_photo_sweep.odi',
-    get_workfct(directory=input_path, file_ending = file_ending, centered=False)
-    get_area_volume(directory=input_path, file_ending = file_ending, centered=False)
+    get_workfct(directory=input_path, file_ending = file_ending, centered=True,mod_odi=mod_odi)
+    get_area_volume(directory=input_path, file_ending = file_ending, centered=True,mod_odi=mod_odi)
