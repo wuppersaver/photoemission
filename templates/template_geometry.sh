@@ -22,6 +22,10 @@ CASE_OUT=${CASE_IN}.out
 
 mpiexec $PRGM $CASE_IN 2>&1 | tee $CASE_OUT
 exit_code=$?
+
+cp ${CASE_IN}.pot_fmt ${CASE_IN}.potfmt.geometry
+cp ${CASE_IN}.den_fmt ${CASE_IN}.denfmt.geometry
+
 echo the_exit_code=$exit_code
 if [ "$CONTINUE" == true ]; then
     if [[ $exit_code -eq 0 ]] ; then
