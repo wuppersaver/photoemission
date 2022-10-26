@@ -65,16 +65,19 @@ def get_workfct(directory:str=None, file_ending:str = '_optados_photo_sweep.odi'
     found = 2
     for item in listOfFiles:
         if '.pot_fmt' in item and not '.dat' in item:
-            found = 1
+            print('pot_fmt')
+            found -= 1
             path = directory + item
             x, potential,cell = average_potential_from_file(path, potential = True)
-        if '_fermi.odo' in item:   
+        if '_fermi.odo' in item:
+            print('fermi_odo')
+            found -= 1
             odo_pth = directory + item
             fermi_level = OptaDOSOutput(odo_pth).fermi_e
-            found = 0
+    print(found)
     if found != 0: 
-        file = ['Opatdos File (_fermi.odo)','Potential File (.pot_fmt)']
-        raise OSError(2, f'No {file[found-1]} found!')
+        file = ['Opatdos File (_fermi.odo)','Potential File (.pot_fmt)', 'file at all']
+        raise OSError(2, f'No {file[found]} found!')
     indices = [0,0]
     stepsize = x[1] - x[0]
     if not centered and bounds == None: bounds = [int(x[-1]/2)-1,int(x[-1]/2)+1]
@@ -89,10 +92,12 @@ def get_workfct(directory:str=None, file_ending:str = '_optados_photo_sweep.odi'
     if mod_odi:             
         for item in listOfFiles:
             if file_ending in item:
+                print('vacuum level = ', round(vacuum_level,5),f' eV, fermi level = ', round(fermi_level,5), ' eV.')
                 print('Writing work_function=', round(vacuum_level-fermi_level,5),f'eV to {item}')
                 subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
     else:
-        print('vacuum level = ', round(vacuum_level,5),f' eV, fermi level = ', round(fermi_level,5), ' eV.')
+        print('vacuum level = ', round(vacuum_level,6),f' eV, fermi level = ', round(fermi_level,5), ' eV.')
+        print('work function = ', round(vacuum_level-fermi_level,6),'eV')
     return;
 
 def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centered:bool = True,mod_odi:bool = True):
@@ -131,8 +136,13 @@ def get_area_volume(directory:str==None, file_ending:str = '_photo.odi', centere
 if __name__ == "__main__":
     input_path = str(sys.argv[1])
     file_ending = str(sys.argv[2])
-    mod_odi = 'yes' in str(sys.argv[3]).lower()
-    #input_path = '/rds/general/user/fcm19/home/PhD/photoemission/structures/Cu_surf_100_victor_60A_new/'
-    #file_ending = '_optados_photo_sweep.odi',
-    get_workfct(directory=input_path, file_ending = file_ending, centered=True,mod_odi=mod_odi)
-    get_area_volume(directory=input_path, file_ending = file_ending, centered=True,mod_odi=mod_odi)
+    mod_odi = int(sys.argv[3]) == 1
+    centering = int(sys.argv[4]) == 1
+    if sys.argv[4] == 'bounds':
+        lower = float(sys.argv[5])
+        upper = float(sys.argv[6])
+        get_workfct(directory=input_path, file_ending = file_ending, bounds = [lower,upper],mod_odi=mod_odi)
+        get_area_volume(directory=input_path, file_ending = file_ending, centered=False,mod_odi=mod_odi)
+    else: 
+        get_workfct(directory=input_path, file_ending = file_ending, centered = centering,mod_odi=mod_odi)
+        get_area_volume(directory=input_path, file_ending = file_ending, centered=centering,mod_odi=mod_odi)
