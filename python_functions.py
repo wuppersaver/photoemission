@@ -275,7 +275,7 @@ def generate_castep_input(task, **options):
         if castep_task == 'Spectral': calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']]) 
         if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
         if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
-        
+        calc.cell.fine_grid_scale = str(castep['fine_grid_scale'])
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
    
