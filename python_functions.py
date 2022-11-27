@@ -289,10 +289,10 @@ def generate_castep_input(task, **options):
         for index, line in enumerate(lines):
             if 'BS_KPOINT_LIST:' in line:
                 path_list = list(lines[index].replace('BS_KPOINT_LIST: ', '').replace('[','').replace(']', '').replace("'", '').replace('\n','').split(', '))
-                path = '%BLOCK BS_KPOINT_LIST\n'
+                path = '%BLOCK BS_KPOINT_PATH\n'
                 for point in path_list:
                     path += point + '\n'
-                path += '%ENDBLOCK BS_KPOINT_LIST\n'
+                path += '%ENDBLOCK BS_KPOINT_PATH\n'
                 lines[index] = path
                 break
         with open(f"{directory}/{seed}.cell", 'w') as f:
