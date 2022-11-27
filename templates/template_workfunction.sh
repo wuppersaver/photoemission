@@ -16,7 +16,7 @@ CASE_IN=TEMPLATE
 
 #sed -i 's,input_path =.*,'"input_path = \'$(pwd)\/\'"',' ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
 file_ending=___
-python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd) $file_ending
+python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd) $file_ending 0 1
 
 exit_code=$?
 echo the_exit_code=$exit_code
