@@ -23,12 +23,19 @@ cp ${CASE_IN}_bands.cell ${CASE_IN}.cell
 CASE_OUT=${CASE_IN}_bands.out
 
 mpiexec $PRGM $CASE_IN 2>&1 | tee -a $CASE_OUT
+
 exit_code=$?
+echo the_exit_code-bands=$exit_code
 
 cp ${CASE_IN}.bands ${CASE_IN}.bands.orig
 
+echo Bands2Orbitals
 $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT
-echo the_exit_code=$exit_code
+exit_code=$?
+
+cp ${CASE_IN}.bands ${CASE_IN}.bands.o2b
+
+echo the_exit_code-b2ob=$exit_code
 
 if [ "$CONTINUE" == true ]; then
     echo $exit_code
