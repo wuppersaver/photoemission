@@ -137,8 +137,8 @@ if __name__ == "__main__":
     input_path = str(sys.argv[1])
     file_ending = str(sys.argv[2])
     mod_odi = int(sys.argv[3]) == 1
-    centering = int(sys.argv[4]) == 1
-    if sys.argv[4] == 'bounds':
+    centering = str(sys.argv[4]) == '1'
+    if str(sys.argv[4]) == 'bounds':
         lower = float(sys.argv[5])
         upper = float(sys.argv[6])
         get_workfct(directory=input_path, file_ending = file_ending, bounds = [lower,upper],mod_odi=mod_odi)
