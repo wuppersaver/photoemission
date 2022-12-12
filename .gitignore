@@ -143,3 +143,6 @@ test.ipynb
 *.xyz
 GaAs_run.ipynb
 
+markdown_files/
+Plotting_OD.ipynb
+OD_debug_files/
