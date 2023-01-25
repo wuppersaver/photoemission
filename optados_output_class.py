@@ -1,9 +1,10 @@
-from configparser import MAX_INTERPOLATION_DEPTH
-from multiprocessing.spawn import old_main_modules
+import re
+# from configparser import MAX_INTERPOLATION_DEPTH
+# from multiprocessing.spawn import old_main_modules
 import warnings
 class OptaDOSOutput:
     
-    def __init__(self, path) -> None:
+    def __init__(self, path:str) -> None:
         scf_lines = []
         self.path = path
         #self.seed = path.split('/')[-1].split('.')[0]
@@ -27,11 +28,32 @@ class OptaDOSOutput:
                 else: self.file_format = 'new'
             if 'Smearing Width' in line:
                 self.temperature = float(line.split()[4])*11604.51812
+            
+            if 'PHOTOEMISSION PARAMETERS' in line:
+                temp_lines = lines[idx+1:idx+16]
+                for line in temp_lines:
+                    if 'Photoemission Model' in line: self.photo_model = ' '.join(line.split()[4:5])
+                    if 'Photoemission Final State' in line: self.photo_final_state = ' '.join(line.split()[5:7])
+                    if 'Photon Energy' in line : self.photo_photon_energy = float(line.split()[5])
+                    if 'Work Function' in line : self.photo_work_function = float(line.split()[5])
+                    if 'Surface Area'  in line : self.photo_surface_area = float(line.split()[5])
+                    if 'Slab Volume'   in line : self.photo_slab_volume = float(line.split()[5])
+                    if 'IMFP Constant' in line : self.photo_imfp = float(line.split()[5])
+                    if 'Electric Field Strength' in line : self.photo_elec_field = float(line.split()[6])
+                    if 'Smearing Temperature' in line : self.photo_smearing_temperature = float(line.split()[5])
+            
+            if 'Lattice Vectors' in line:
+                for i in range(3):
+                    self.lattice[i] = [float(x) for x in lines[idx+1+i].strip().split()[1:]]
+
             if 'Electronic Data' in line:
                 self.num_bands = int(lines[idx+1].strip().split()[5])
                 temp = lines[idx+2].strip().split()
-                if '***' not in temp:    
-                    self.k_grid = [int(temp[4]),int(temp[6]),int(temp[8])]
+                if '***' not in temp:
+                    for index,item in enumerate(temp):
+                        temp[index] = item.replace('x','')
+                    if int(temp[4]) > 99:  self.k_grid = [int(temp[4]),int(temp[5]),int(temp[7])]
+                    else: self.k_grid = [int(temp[4]),int(temp[6]),int(temp[8])]
                 self.num_kpts = int(lines[idx+3].strip().split()[5])
                 if 'True' in lines[idx+4].strip(): self.spin_polarised = True
                 else: self.spin_polarised = False
@@ -48,7 +70,7 @@ class OptaDOSOutput:
             if 'Max number of atoms' in line:
                 self.max_atoms = int(line.split()[5])
                 self.max_layers = int(line.split()[10])
-            if 'Work Function' in line and not 'Effective' in line:
+            if 'Work Function' in line and 'Photon Energy' in line:
                 self.work_fct = float(line.split()[3])
                 self.photon_e = float(line.split()[7])
                 temp = lines[idx+1].strip().split()
@@ -67,13 +89,12 @@ class OptaDOSOutput:
             if 'Total Quantum Efficiency' in line:
                 self.qe = float(line.split()[5])
                 self.mte = float(lines[idx+1].split()[6])
-            if 'Lattice Vectors' in line:
-                for i in range(3):
-                    self.lattice[i] = [float(x) for x in lines[idx+1+i].strip().split()[1:]]
+            #print(line)
+            if hasattr(self, 'iprint'):
+                if self.iprint > 1 and 'jdos_max_energy' in line:
+                    self.jdos_max_energy = float(line.strip().split()[3])
+        #print ([value for value in self.__dict__.keys()])
 
-            if self.iprint > 1 and 'jdos_max_energy' in line:
-                self.jdos_max_energy = float(line.strip().split()[3])
-    
     def create_bandstructure(self,):
         
         return;
