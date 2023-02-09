@@ -1330,6 +1330,174 @@ def make_photonsweep_plots(data:dict,**options):
     plt.tight_layout()
     return fig,ax;
 
+def modified_proj_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None, export_json = False,):
+    energies, total= [],[]
+    columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
+    plt.style.use('seaborn-poster')
+    fig, ax = plt.subplots(1,1, figsize = (10,5), dpi = 300)
+    header_string = '#+----------------------------------------------------------------------------+'
+    header, values = [],[]
+    spin_channels = False
+    shifted_efermi = False
+    if path == None:
+        path = f'./structures/'
+    listOfFiles = os.listdir(path)
+     # create output classes for each of the output files
+    found=[False,False]
+    for item in listOfFiles:
+        if '_all.odo' in item:
+            seed = item.replace('_all.odo','')
+            with open(path + item,'r') as g:
+                for line in g:
+                    if 'Shift energy scale so fermi_energy=0' in line: shifted_efermi = bool(line.split()[7]=='True')
+                    if 'Projected Density Of States Calculation' in line:
+                        for i in range(6): line = next(g)
+                        if 'Fermi energy' in line: efermi = float(line.split()[6])
+                        else: print('No fermi energy found, check cursor position!')
+            found[0] = True
+        if '.pdos.dat' in item:
+            with open(path+item,'r') as f:
+                for line in f:
+                    line_values = line.strip().split()
+                    if '#' in line_values[0]:
+                        header.append(line_values)
+                    else:
+                        values.append(line_values)
+            found[1] = True
+    files=[f'Optados Output',f'pDOS Data File']
+    for index,item in enumerate(found):
+        if item == False:
+            raise  OSError(2, f'No {files[index]} found!')
+    for i, item in enumerate(header):
+        if 'Column:' in item:
+            columns[item[2]] = []
+            t = i+2
+            while header_string not in header[t]:
+                columns[item[2]].append(header[t][1:-1])
+                t += 1
+    if len(columns['1'][0])>3: spin_channels = True
+    #print(columns)
+    for key in columns.keys():                                                              # Go through each of the columns read in from the header
+        current = columns[key]                                                              # Load the array with the information for the current column, each Atom included has its own array (for example Cu1, Cu2)
+        atom = ''
+        for item in current:                                                                # Generate string with atoms or sites included in column projector 
+            if atom != '':
+                atom += ','
+            atom += (f'{item[0]}{item[1]}') 
+        orbital = current[0][2]                                                             # Read in the orbital projection for this column
+        column_keys[key] = [atom,orbital]                                                   # Set the information for that generated column key with information on projector constituents and orbitals
+        if atom not in projections.keys():projections[atom] = {}
+        if spin_channels:                                                                   # If spin channel is included in the file, initialise initialise projections as {atom: { orbital1: { Spin1: [], ...} , ... } }                    # Initialise atom dict
+            if orbital not in projections[atom].keys():projections[atom][orbital] = {}      # Initialise orbital dict
+            if spin_channels and current[0][3] in ['Up','Down']: 
+                spin = current[0][3]
+                if spin not in projections[atom][orbital].keys(): 
+                    projections[atom][orbital][spin] = []                                   # initialise spin channel array
+                    column_keys[key].append(spin)                                           # Append pin channel to generated column key tuple
+        else:                                                                               # If no spin channel is included in the file, initialise projections as {atom: {orbital1: [], ... }}
+            if orbital not in projections[atom].keys():projections[atom][orbital] = []
+    for item in values:
+        item = [float(i) for i in item]
+        if not all(abs(elem) == item[1] for elem in item[1:]):
+            if not shifted_efermi: energies.append(item[0]-efermi)
+            else: energies.append(item[0])
+            temp_total, temp_up, temp_down = 0,0,0
+            for i in range(len(item[1:])):
+                keys = column_keys[str(i+1)]
+                if spin_channels:
+                    local_dos = float(item[i+1])
+                    projections[keys[0]][keys[1]][keys[2]].append(local_dos)
+                    if keys[2] == 'Down':
+                        temp_total += local_dos * -1
+                        temp_down += local_dos
+                    else:
+                        temp_total += local_dos
+                        temp_up += local_dos
+                else:
+                    projections[keys[0]][keys[1]].append(float(item[i+1]))
+                    temp_total = temp_total + float(item[i+1])
+            total.append(temp_total)
+            totals[Spin.up].append(temp_up)
+            totals[Spin.down].append(temp_down)
+    if plot_total: ax.plot(energies, total, label = f"{atom}-total", alpha = 0.8,lw = 1)
+    for atom in projections.keys():
+        for orbital in projections[atom]:
+            if spin_channels:
+                if plot_up: 
+                    if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Up']): 
+                        ax.plot(energies, projections[atom][orbital]['Up'], label = f"{columns[columns.keys()[0]]}-{columns[columns.keys()[-1]]}-{orbital}-Up",alpha = 0.6, lw = 2)
+                if plot_down: 
+                    if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]['Down']): 
+                        ax.plot(energies, projections[atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 2)
+            else:
+                keys = columns['1']
+                print(keys)
+                if not all(abs(elem) == 0.0 for elem in projections[atom][orbital]): 
+                    ax.plot(energies, projections[atom][orbital], label = f"{keys[0][0],keys[0][1]}-{keys[-1][0],keys[-1][1]}-{orbital}", alpha = 0.6,lw = 2)
+    if xlimit == None: ax.set(xlim = (min(energies),max(energies)))
+    else: ax.set(xlim = xlimit)
+    #plt.legend()
+    if export_json:                                                             # Export currently gives errors due to inconsistencies within pymatgen DOS class                                                             
+        cell = read_cell2pmg(path = f"./structures/{seed}/{seed}.cell")
+        tot_dos = Dos(energies = energies, densities = totals,efermi = 0)
+        proj_dos = CompleteDos(cell, total_dos = tot_dos, pdoss = projections)
+        with open(f'./structures/jsons/DOS/{seed}.json', 'w') as f:
+            json.dump(proj_dos.as_dict(), f)
+    return fig,ax;
+
+def modified_potential_plot(directory:str=None, bounds = None,centered:bool = True,mod_odi:bool = True):
+    if directory == None:
+        directory = f'./structures/' 
+    if directory[-1] != '/': directory += '/'
+    listOfFiles = os.listdir(directory)
+    found = [False,False]
+    for item in listOfFiles:
+        if '.pot_fmt' in item and not '.dat' in item:
+            found[0] = True
+            path = directory + item
+            x, potential,cell = average_potential_from_file(path, potential = True)
+        if '_all.odo' in item:   
+            odo_pth = directory + item
+            fermi_level = OptaDOSOutput(odo_pth).fermi_e
+            found[1] = True
+        if False not in found: break
+    if False in found: 
+        file = ['Potential File (.pot_fmt)','Opatdos File (_all.odo)']
+        for item in found: 
+            if item == False:
+                raise OSError(2, f'No {file[found.index[item]]} found!')
+    indices = [0,0]
+    stepsize = x[1] - x[0]
+    if not centered and bounds == None: bounds = [(x[-1]/2)-1,(x[-1]/2)+1]
+    if centered and bounds == None: bounds =[0,5]
+    #print(fermi_level.path)
+    seed = path.split('/')[-1].split('.')[0]
+    for index, item in enumerate(x):
+        if abs(item - bounds[0]) <= stepsize: indices[0] = index
+        if abs(item - bounds[1]) <= stepsize: indices[1] = index
+        if item > (bounds[1]+3*stepsize): break
+    vacuum_level = np.mean(potential[indices[0]:indices[1]])
+    print(plt.style.available)
+    plt.style.use('seaborn-poster')
+    fig, ax = plt.subplots(1,1, figsize = (5,4), dpi = 300)
+    plt.tick_params(axis='both',which='both',bottom=False,top=False,labelbottom=False,left=False,right=False,labelleft=False)
+     #ax.hlines(vacuum_level, 0, max(x), ls = '--',colors = 'r', linewidth = 1, label= 'Vacuum Level')
+    ax.hlines(fermi_level,0,max(x), ls = '--', colors = 'r', linewidth=1.5, label='Fermi Energy')
+    #ax.vlines(bounds,vacuum_level-1, vacuum_level+1,colors = 'k',linewidth = 1, label = 'bounds')
+    ax.plot(x,potential,linewidth = 1.5, label = 'Potential')
+    #ax.text(max(x)/2,vacuum_level-2,f'vacuum level = {round(vacuum_level,5)} eV',ha='center')
+    #ax.text(max(x)/2,fermi_level - 2,f'fermi level = {round(fermi_level,5)} eV',ha='center')
+    #ax.set_title(f'{seed} - Workfunction W = {round(vacuum_level-fermi_level,5)}')
+    ax.set(xlim = (0,max(x)/2+5),xlabel = r'z', ylabel = 'Energy',ylim = [min(potential)-2,max(potential) + 20])
+    #ax.legend(loc='best')
+    if mod_odi:             
+        for item in listOfFiles:
+            if '_photo.odi' in item:
+                print('Writing work_function=', round(vacuum_level-fermi_level,5),f'eV to {item}')
+                subprocess.call(f'sed -i "s/.*work_function.*/work_function : {round(vacuum_level-fermi_level,5)}/" {directory}{item}',shell=True)
+
+    return fig,ax;
+
 def get_adjusted_kpts(original, new, kpt = [1,1,1]):
     orig_cell  = original.lattice
     new_cell  = new.lattice
