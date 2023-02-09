@@ -262,6 +262,8 @@ def generate_castep_input(task, **options):
         special_cont = castep_task.lower() in ["bandstructure","spectral"] and "geometry" in [x.lower() for x in options['general']['tasks']]
         if castep['continuation'] or special_cont: 
             calc.param.continuation = 'Default'
+        if castep['offset_mp_grid']: 
+            calc.param.kpoint_mp_offset = f"{castep['kpoint_mp_offset'][0]} {castep['kpoint_mp_offset'][1]} {castep['kpoint_mp_offset'][2]}"
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         
         # Define cell file options
@@ -374,13 +376,13 @@ def generate_optados_input(task,**options):
             if 'sweep' in task:
                 if "sweep_values=seq -f \"%'.5f\"" in line:
                     lines[index] = line.replace('___',values)
-                if 's/.*photon_energy.*/photon_energy' in line:
-                    lines[index] = line.replace('photon_energy',sweep_options['parameter'])
+                if 's/.*photo_photon_energy.*/photo_photon_energy' in line:
+                    lines[index] = line.replace('photo_photon_energy',sweep_options['parameter'])
             else:
                 if 'models=' in line:
                     lines[index] = line.replace('___','('+' '.join(options['optados']['photo_options']['photo_model'])+')')
                 if 'energy=' in line:
-                    lines[index] = line.replace('___',str(options['optados']['photo_options']['photon_energy']))
+                    lines[index] = line.replace('___',str(options['optados']['photo_options']['photo_photon_energy']))
         
         with open(f'{directory}/{seed}_{appendices[task]}.sh','w') as fw:
             fw.writelines(lines)
