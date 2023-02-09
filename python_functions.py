@@ -641,7 +641,13 @@ def read_cell2pmg(path:str):
                     if temp[0] == '%ENDBLOCK':
                         break
                     species.append(temp[0])
-                    coords.append([float(temp[1]),float(temp[2]),float(temp[3])])
+                    temp_coord = []
+                    for item in temp[1:]:
+                        if '/' in item: 
+                            fraction = item.split('/')
+                            temp_coord.append(float(fraction[0])/float(fraction[1]))
+                        else: temp_coord.append(float(item))
+                    coords.append(temp_coord)
                 cartesian = False
                 break
     return Structure(lattice_obj,species, coords, coords_are_cartesian= cartesian);
