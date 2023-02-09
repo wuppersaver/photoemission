@@ -52,7 +52,9 @@ class OptaDOSOutput:
                 if '***' not in temp:
                     for index,item in enumerate(temp):
                         temp[index] = item.replace('x','')
-                    if int(temp[4]) > 99:  self.k_grid = [int(temp[4]),int(temp[5]),int(temp[7])]
+                    if int(temp[4]) > 99:
+                        if '' == temp[5]:self.k_grid = [int(temp[4]),int(temp[6]),int(temp[8])]
+                        else:self.k_grid = [int(temp[4]),int(temp[5]),int(temp[7])]
                     else: self.k_grid = [int(temp[4]),int(temp[6]),int(temp[8])]
                 self.num_kpts = int(lines[idx+3].strip().split()[5])
                 if 'True' in lines[idx+4].strip(): self.spin_polarised = True
