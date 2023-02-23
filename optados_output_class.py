@@ -73,12 +73,12 @@ class OptaDOSOutput:
                 self.max_atoms = int(line.split()[5])
                 self.max_layers = int(line.split()[10])
             if 'Work Function' in line and 'Photon Energy' in line:
-                self.work_fct = float(line.split()[3])
-                self.photon_e = float(line.split()[7])
+                self.workfct = float(line.split()[3])
+                self.photon_energy = float(line.split()[7])
                 temp = lines[idx+1].strip().split()
                 #print(temp)
-                self.work_fct_effect = float(temp[4])
-                self.e_field = float(temp[8].replace('V/A',''))
+                self.workfct_effective = float(temp[4])
+                self.electric_field = float(temp[8].replace('V/A',''))
                 temp = lines[idx+1]
                 if 'Free electron state' in temp: self.final_state = 'free electron'
                 if 'Bloch state' in temp: self.final_state = 'bloch'
@@ -87,7 +87,9 @@ class OptaDOSOutput:
                 #print(self.max_layers)
                 for i in range(self.max_layers):
                     temp = lines[idx+1+i].strip().split()
-                    self.layers[str(i)] = [temp[1], int(temp[2]), int(temp[3])]
+                    self.layers[str(i)] = [temp[1], int(temp[2]), int(temp[3]), float(temp[4])]
+                temp = lines[idx+self.max_layers+1].strip().split()
+                self.layers['bulk'] = [temp[1],float(temp[2])]
             if 'Total Quantum Efficiency' in line:
                 self.qe = float(line.split()[5])
                 self.mte = float(lines[idx+1].split()[6])
@@ -95,8 +97,6 @@ class OptaDOSOutput:
             if hasattr(self, 'iprint'):
                 if self.iprint > 1 and 'jdos_max_energy' in line:
                     self.jdos_max_energy = float(line.strip().split()[3])
-        #print ([value for value in self.__dict__.keys()])
-
     def create_bandstructure(self,):
         
         return;
