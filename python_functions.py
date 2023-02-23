@@ -1009,14 +1009,16 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
             totals[Spin.up].append(temp_up)
             totals[Spin.down].append(temp_down)
     if export_json:                                                             # Export currently gives errors due to inconsistencies within pymatgen DOS class                                                             
-        cell = read_cell2pmg(path = f"./structures/{seed}/{seed}.cell")
+        cell = read_cell2pmg(path = path+f"{seed}.cell")
         tot_dos = Dos(energies = energies, densities = totals,efermi = 0)
         proj_dos = CompleteDos(cell, total_dos = tot_dos, pdoss = projections)
+        print(proj_dos.as_dict())
         with open(f'./structures/jsons/DOS/{seed}.json', 'w') as f:
             json.dump(proj_dos.as_dict(), f)       
     data = {
         'energies' : energies,
-        'total' : totals,
+        'total' : total,
+        'totals' : totals,
         'projections' : projections,
         'seed' : seed,
         'columns' : columns,
@@ -1028,21 +1030,26 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
 def plot_proj_dos_optados(data:dict=None,plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None,figsize = (12,5)):
     plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(1,1, figsize = figsize, dpi = 300)
-    if plot_total: ax.plot(data['energies'], data['total'], label = f"{atom}-total", alpha = 0.8,lw = 1)
-    for atom in data['projections'].keys():
-        for orbital in data['projections'][atom]:
-            if data['spin channels']:
-                if plot_up: 
-                    if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]['Up']): 
-                        ax.plot(data['energies'], data['projections'][atom][orbital]['Up'], label = f"{data['columns'][data['columns'].keys()[0]]}-{data['columns'][data['columns'].keys()[-1]]}-{orbital}-Up",alpha = 0.6, lw = 1)
-                if plot_down: 
-                    if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]['Down']): 
-                        ax.plot(data['energies'], data['projections'][atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
-            else:
-                keys = data['columns']['1']
-                print(keys)
-                if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]): 
-                    ax.plot(data['energies'], data['projections'][atom][orbital], label = f"{keys[0][0],keys[0][1]}-{keys[-1][0],keys[-1][1]}-{orbital}", alpha = 0.6,lw = 1)
+    if plot_total:
+        ax.plot(data['energies'], data['total'], label = f"Total DOS", alpha = 0.8,lw = 1)
+        # if plot_up:ax.plot(data['energies'], data['totals'][Spin.up], label = f"Up-total", alpha = 0.8,lw = 1)
+        # if plot_down:ax.plot(data['energies'], data['totals'][Spin.down], label = f"Down-total", alpha = 0.8,lw = 1)
+
+    else:
+        for atom in data['projections'].keys():
+            for orbital in data['projections'][atom]:
+                if data['spin channels']:
+                    if plot_up: 
+                        if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]['Up']): 
+                            ax.plot(data['energies'], data['projections'][atom][orbital]['Up'], label = f"{data['columns'][data['columns'].keys()[0]]}-{data['columns'][data['columns'].keys()[-1]]}-{orbital}-Up",alpha = 0.6, lw = 1)
+                    if plot_down: 
+                        if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]['Down']): 
+                            ax.plot(data['energies'], data['projections'][atom][orbital]['Down'], label = f"{atom}-{orbital}-Down", alpha = 0.6,lw = 1)
+                else:
+                    keys = data['columns']['1']
+                    print(keys)
+                    if not all(abs(elem) == 0.0 for elem in data['projections'][atom][orbital]): 
+                        ax.plot(data['energies'], data['projections'][atom][orbital], label = f"{keys[0][0],keys[0][1]}-{keys[-1][0],keys[-1][1]}-{orbital}", alpha = 0.6,lw = 1)
     if xlimit == None: ax.set(xlim = (min(data['energies']),max(data['energies'])))
     else: ax.set(xlim = xlimit)
     plt.legend()
