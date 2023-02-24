@@ -262,11 +262,10 @@ def generate_castep_input(task, **options):
         special_cont = castep_task.lower() in ["bandstructure","spectral"] and "geometry" in [x.lower() for x in options['general']['tasks']]
         if castep['continuation'] or special_cont: 
             calc.param.continuation = 'Default'
-        if castep['offset_mp_grid']: 
-            calc.param.kpoint_mp_offset = f"{castep['kpoint_mp_offset'][0]} {castep['kpoint_mp_offset'][1]} {castep['kpoint_mp_offset'][2]}"
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
         
         # Define cell file options
+        if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         if castep['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
         if castep_task == 'BandStructure':
             band_path = calc_struct.cell.bandpath(castep['bandstruct_path'], density = castep['bandstruct_kpt_dist'])
@@ -274,10 +273,14 @@ def generate_castep_input(task, **options):
             calc.set_bandpath(bandpath=band_path)
             calc.cell.bs_kpoint_path_spacing = castep['bandstruct_kpt_dist']
         calc.set_kpts(castep['kpoints'])
-        if castep_task == 'Spectral': calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']]) 
+        if castep['offset_mp_grid']: 
+            calc.cell.kpoint_mp_offset = f"{castep['kpoint_mp_offset'][0]} {castep['kpoint_mp_offset'][1]} {castep['kpoint_mp_offset'][2]}"
+        if castep_task.lower() == 'spectral': 
+            calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']])
+            calc.cell.spectral_kpoint_mp_offset = f"{castep['spectral_kpoint_mp_offset'][0]} {castep['spectral_kpoint_mp_offset'][1]} {castep['spectral_kpoint_mp_offset'][2]}"
         if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
-        if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         calc.cell.fine_grid_scale = str(castep['fine_grid_scale'])
+        calc.cell.grid_scale = str(castep['grid_scale'])
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
    
