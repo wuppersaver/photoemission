@@ -84,7 +84,7 @@ def generate_scripts(**options):
         qsub ${calculation[geometry]} 
         exit
     fi
-    if [[ $INTERNAL == geometry_run ]]; then    
+    if [ $INTERNAL == geometry_run ] || [ $INTERNAL == geometry_unfinished ]; then  
         sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
         if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geometry.param; then
@@ -94,11 +94,11 @@ def generate_scripts(**options):
         qsub ${calculation[geometry]}
         exit
     fi\n""",
-        'Spectral':"""          sed -i '0,/.*STATE=.*/s//STATE=spectral_run/' ${calculation[submission]} 
-            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[spectral]} 
-            echo "Spectral"
-            qsub ${calculation[spectral]}
-            exit
+        'Spectral':"""      sed -i '0,/.*STATE=.*/s//STATE=spectral_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[spectral]} 
+        echo "Spectral"
+        qsub ${calculation[spectral]}
+        exit
     fi\n""",
         'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_fermi_run/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_all]} 
@@ -112,23 +112,23 @@ def generate_scripts(**options):
         qsub ${calculation[work_fct]}
         exit
     fi\n""",
-        'OD_Photo': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${calculation[submission]} 
-    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
-    echo "OptaDOS Photoemission Calculation"
-    qsub ${calculation[optados_photo]}
-    exit
+        'OD_Photo': """     sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
+        echo "OptaDOS Photoemission Calculation"
+        qsub ${calculation[optados_photo]}
+        exit
     fi\n""",
-        'OD_Photo_Sweep': """    sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_run/' ${calculation[submission]} 
-    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo_sweep]}
-    echo "OptaDOS Photoemission Sweep"
-    qsub ${calculation[optados_photo_sweep]}
-    exit
+        'OD_Photo_Sweep': """       sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo_sweep]}
+        echo "OptaDOS Photoemission Sweep"
+        qsub ${calculation[optados_photo_sweep]}
+        exit
     fi\n""",
-        'BandStructure': """    sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${calculation[submission]} 
-    sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[bands]} 
-    echo "Bandstructure"
-    qsub ${calculation[bands]}
-    exit
+        'BandStructure': """        sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${calculation[submission]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[bands]} 
+        echo "Bandstructure"
+        qsub ${calculation[bands]}
+        exit
     fi\n""",
         'final' : """else
     if [[ $# -gt 0 && $# -lt 2 ]] ; then
@@ -244,6 +244,7 @@ def generate_castep_input(task, **options):
         if castep_task == 'Spectral': 
             calc.param.spectral_task = castep['spectral_task']
             if castep['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
+        calc.param.run_time = int(castep['run_time']*3600)
         calc.param.xc_functional = castep['xc_functional']
         calc.param.opt_strategy = castep['opt_strategy']
         calc.param.smearing_width = str(castep['smearing_width']) + ' K'
@@ -263,7 +264,8 @@ def generate_castep_input(task, **options):
         if castep['continuation'] or special_cont: 
             calc.param.continuation = 'Default'
         calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
-        
+        calc.param.fine_grid_scale = str(castep['fine_grid_scale'])
+        calc.param.grid_scale = str(castep['grid_scale'])
         # Define cell file options
         if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
         if castep['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
@@ -279,8 +281,7 @@ def generate_castep_input(task, **options):
             calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpoint_mp_grid']])
             calc.cell.spectral_kpoint_mp_offset = f"{castep['spectral_kpoint_mp_offset'][0]} {castep['spectral_kpoint_mp_offset'][1]} {castep['spectral_kpoint_mp_offset'][2]}"
         if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
-        calc.cell.fine_grid_scale = str(castep['fine_grid_scale'])
-        calc.cell.grid_scale = str(castep['grid_scale'])
+        
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
    
