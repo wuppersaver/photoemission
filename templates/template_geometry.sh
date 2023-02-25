@@ -29,9 +29,19 @@ cp ${CASE_IN}.den_fmt ${CASE_IN}.denfmt.geometry
 echo the_exit_code=$exit_code
 if [ "$CONTINUE" == true ]; then
     if [[ $exit_code -eq 0 ]] ; then
-        sed -i '0,/.*STATE=.*/s//STATE=geometry_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
-        ./${CASE_IN}_submission.sh
+        if ! test -e ${CASE_IN}.castep; then
+            sed -i '0,/.*STATE=.*/s//STATE=geometry_fail/' ${CASE_IN}_submission.sh
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
+        fi
+        if grep -Fxq "LBFGS: Geometry optimization completed successfully." ${CASE_IN}.castep; then
+            sed -i '0,/.*STATE=.*/s//STATE=geometry_success/' ${CASE_IN}_submission.sh
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
+            ./${CASE_IN}_submission.sh
+        else
+            sed -i '0,/.*STATE=.*/s//STATE=geometry_unfinished/' ${CASE_IN}_submission.sh
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
+            ./${CASE_IN}_submission.sh
+        fi
     else
         sed -i '0,/.*STATE=.*/s//STATE=geometry_fail/' ${CASE_IN}_submission.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
