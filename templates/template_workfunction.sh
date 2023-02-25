@@ -15,7 +15,7 @@ CASE_IN=TEMPLATE
 ########### Python Script ###########
 
 #sed -i 's,input_path =.*,'"input_path = \'$(pwd)\/\'"',' ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
-file_ending=_optados_photo.odi
+file_ending=___
 # ARGS: directory file_ending mod_odi(bool) centered_structure?(bool)
 python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd) $file_ending 0 1
 

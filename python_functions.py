@@ -176,9 +176,10 @@ fi\n"""
                 with open(f'{directory}/{seed}_workfunction.sh','rw') as fr:
                     lines = fr.readlines()
                     for index,line in enumerate(lines):
-                        if '' in line:
+                        if 'file_ending=___' in line:
                             line[index] = line.replace('___',f'_{task_shorts[task]}.odi')
-        return
+
+    return
 
 def generate_workfct_input(task = None, **options):
     directory = options['general']['directory']
@@ -242,45 +243,56 @@ def generate_castep_input(task, **options):
         # Define parameter file options
         calc.param.task = castep_task
         if castep_task == 'Spectral': 
-            calc.param.spectral_task = castep['spectral_task']
+            calc.param.spectral_task            = castep['spectral_task']
             if castep['calculate_pdos']: calc.param.pdos_calculate_weights = 'TRUE'
-        calc.param.run_time = int(castep['run_time']*3600)
-        calc.param.xc_functional = castep['xc_functional']
-        calc.param.opt_strategy = castep['opt_strategy']
-        calc.param.smearing_width = str(castep['smearing_width']) + ' K'
-        calc.param.cut_off_energy = str(castep['energy_cutoff']) + ' eV'
-        calc.param.elec_energy_tol = str(castep['elec_energy_tol']) + ' eV'
-        if castep['extra_bands']: calc.param.perc_extra_bands = str(castep['percent_extra_bands'])
-        calc.param.max_scf_cycles = str(castep['max_scf_cycles'])
+        calc.param.run_time                     = int(castep['run_time']*3600)
+        calc.param.backup_interval              = int(castep['backup_interval']*3600)
+        calc.param.xc_functional                = castep['xc_functional']
+        calc.param.opt_strategy                 = castep['opt_strategy']
+        calc.param.smearing_width               = str(castep['smearing_width']) + ' K'
+        calc.param.cut_off_energy               = str(castep['energy_cutoff']) + ' eV'
+        calc.param.elec_energy_tol              = str(castep['elec_energy_tol']) + ' eV'
+        if castep['extra_bands']: 
+            calc.param.perc_extra_bands         = str(castep['percent_extra_bands'])
+        calc.param.max_scf_cycles               = str(castep['max_scf_cycles'])
         if castep['fix_occup']: 
-            calc.param.fix_occupancy = 'TRUE'
-            calc.param.metals_method = castep['metals_method']
-        if castep['spin_polarized'] : calc.param.spin_polarized = 'TRUE'
-        else: calc.param.spin_polarized = 'FALSE'
-        if castep['write_potential']: calc.param.write_formatted_potential = 'TRUE'
-        if castep['write_density']: calc.param.write_formatted_density = 'TRUE'
-        if castep['mixing_scheme'].lower() != 'broydon': calc.param.mixing_scheme = castep['mixing_scheme']
+            calc.param.fix_occupancy            = 'TRUE'
+            calc.param.metals_method            = castep['metals_method']
+        if castep['spin_polarized'] : 
+            calc.param.spin_polarized           = 'TRUE'
+        else: 
+            calc.param.spin_polarized           = 'FALSE'
+        if castep['write_potential']: 
+            calc.param.write_formatted_potential = 'TRUE'
+        if castep['write_density']: 
+            calc.param.write_formatted_density  = 'TRUE'
+        if castep['mixing_scheme'].lower() != 'broydon': 
+            calc.param.mixing_scheme            = castep['mixing_scheme']
         special_cont = castep_task.lower() in ["bandstructure","spectral"] and "geometry" in [x.lower() for x in options['general']['tasks']]
         if castep['continuation'] or special_cont: 
-            calc.param.continuation = 'Default'
-        calc.param.num_dump_cycles = 0 # Prevent CASTEP from writing *wvfn* files
-        calc.param.fine_grid_scale = str(castep['fine_grid_scale'])
-        calc.param.grid_scale = str(castep['grid_scale'])
+            calc.param.continuation             = 'Default'
+        calc.param.num_dump_cycles              = 0 # Prevent CASTEP from writing *wvfn* files
+        calc.param.fine_grid_scale              = str(castep['fine_grid_scale'])
+        calc.param.grid_scale                   = str(castep['grid_scale'])
+
         # Define cell file options
-        if castep['generate_symmetry']: calc.cell.symmetry_generate = 'TRUE'
-        if castep['snap_to_symmetry']: calc.cell.snap_to_symmetry = 'TRUE'
+        if castep['generate_symmetry']: 
+            calc.cell.symmetry_generate         = 'TRUE'
+        if castep['snap_to_symmetry']: 
+            calc.cell.snap_to_symmetry          = 'TRUE'
         if castep_task == 'BandStructure':
             band_path = calc_struct.cell.bandpath(castep['bandstruct_path'], density = castep['bandstruct_kpt_dist'])
             #print(band_path)
             calc.set_bandpath(bandpath=band_path)
-            calc.cell.bs_kpoint_path_spacing = castep['bandstruct_kpt_dist']
+            calc.cell.bs_kpoint_path_spacing    = castep['bandstruct_kpt_dist']
         calc.set_kpts(castep['kpoints'])
         if castep['offset_mp_grid']: 
-            calc.cell.kpoint_mp_offset = f"{castep['kpoint_mp_offset'][0]} {castep['kpoint_mp_offset'][1]} {castep['kpoint_mp_offset'][2]}"
+            calc.cell.kpoint_mp_offset          = ' '.join(castep['kpoint_mp_offset'])
+            calc.cell.spectral_kpoint_mp_offset = ' '.join(castep['spectral_kpoint_mp_offset'])
         if castep_task.lower() == 'spectral': 
-            calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpoint_mp_grid']])
-            calc.cell.spectral_kpoint_mp_offset = f"{castep['spectral_kpoint_mp_offset'][0]} {castep['spectral_kpoint_mp_offset'][1]} {castep['spectral_kpoint_mp_offset'][2]}"
-        if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
+            calc.cell.spectral_kpoints_mp_grid  = ' '.join([str(x) for x in castep['spectral_kpoint_mp_grid']])
+        if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: 
+            calc.cell.fix_all_cell              = 'TRUE'
         
     # Prepare atoms and attach them to the current calculator
     calc_struct.calc = calc
