@@ -84,7 +84,7 @@ def generate_scripts(**options):
         qsub ${calculation[geometry]} 
         exit
     fi
-    if [[ $INTERNAL == geometry_run ] || [ $INTERNAL == geometry_unfinished ]]; then  
+    if [ $INTERNAL == geometry_run ] || [ $INTERNAL == geometry_unfinished ]; then  
         sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
         if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geometry.param; then
