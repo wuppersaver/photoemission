@@ -88,7 +88,7 @@ def generate_scripts(**options):
         sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${calculation[submission]} 
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
         if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geometry.param; then
-            echo "CONTINUATION" | tee -a ${CASE_IN}_geometry.param
+            echo "\nCONTINUATION" | tee -a ${CASE_IN}_geometry.param
         fi
         echo "GeometryOptimization Continued"
         qsub ${calculation[geometry]}
@@ -276,7 +276,7 @@ def generate_castep_input(task, **options):
         if castep['offset_mp_grid']: 
             calc.cell.kpoint_mp_offset = f"{castep['kpoint_mp_offset'][0]} {castep['kpoint_mp_offset'][1]} {castep['kpoint_mp_offset'][2]}"
         if castep_task.lower() == 'spectral': 
-            calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpt_grid']])
+            calc.cell.spectral_kpoints_mp_grid = ' '.join([str(x) for x in castep['spectral_kpoint_mp_grid']])
             calc.cell.spectral_kpoint_mp_offset = f"{castep['spectral_kpoint_mp_offset'][0]} {castep['spectral_kpoint_mp_offset'][1]} {castep['spectral_kpoint_mp_offset'][2]}"
         if castep_task.lower() == 'geometryoptimization' and castep['fix_all_cell']: calc.cell.fix_all_cell = 'TRUE'
         calc.cell.fine_grid_scale = str(castep['fine_grid_scale'])
@@ -334,12 +334,14 @@ def generate_optados_input(task,**options):
     output = [f"task : {tasks[task]}\n"]
     #print(tasks[task])
     if tasks[task] != 'photoemission':
-        if options['optados']['optados_task'].lower() in ['pdos','all']:
-            output.append(f"PDOS : {options['optados']['pdos']}\n")
-        output.append(f"broadening : {options['optados']['broadening']}\n")
-        output.append(f"iprint : {options['optados']['iprint']}\n")
-        output.append(f"efermi : {options['optados']['efermi']}\n")
-        output.append(f"dos_spacing : {str(options['optados']['dos_spacing'])}")
+        if options['optados']['optados_task'].lower() in ['pdos','optics','all']:
+            output.append(f"PDOS            : {options['optados']['pdos']}\n")
+        output.append(f"broadening      : {options['optados']['broadening']}\n")
+        output.append(f"iprint          : {options['optados']['iprint']}\n")
+        output.append(f"efermi          : {options['optados']['efermi']}\n")
+        output.append(f"dos_spacing     : {str(options['optados']['dos_spacing'])}\n")
+        if options['optados']['dos_per_volume']:
+            output.append(f"dos_per_volume  : {str(options['optados']['dos_per_volume'])}\n")
     else:
         photo = options['optados']['photo_options']
         for item in photo.keys():
@@ -355,6 +357,8 @@ def generate_optados_input(task,**options):
                     output.append(f"{item} : TRUE\n")
                 continue
             output.append(f"{item} : {photo[item]}\n")
+        if options['optados']['dos_per_volume']:
+            output.append(f"dos_per_volume  : {str(options['optados']['dos_per_volume'])}\n")
     appendices = {
         'fermi' : 'optados_fermi',
         'photo' : 'optados_photo',

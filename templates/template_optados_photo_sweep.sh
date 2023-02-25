@@ -8,35 +8,44 @@ cd $PBS_O_WORKDIR
 module load intel-suite
 
 CONTINUE=false
-
 CASE_IN=TEMPLATE
+models=(1step 3step)
+energies=($(seq -f "%'.2f" 4.2 0.1 6.5))
+jdos_maxs=(25) #($(seq -f "%'.2f" 5 1 20))
+jdos_spacings=(0.1) #($(seq -f "%'.2f" 5 1 20))
+iprint=___
+directory=___
 
 ########### OptaDOS Photoemission ###########
 
-OPTADOS=/rds/general/user/fcm19/home/modules_codes/optados/optados.x
+OPTADOS=~/modules_codes/optados_photo_dev/optados/volume/optados.x
 
-sweep_values=seq -f "%'.5f" ___
+cp ${CASE_IN}_optados_photo.odi ${CASE_IN}.odi
 
-cp ${CASE_IN}_optados_photo_sweep.odi ${CASE_IN}.odi
+if [ "${directory}" != './' ]; then
+    if [ ! -d $directory ]; then
+        mkdir $directory
+    fi
+fi
 
-sed -i 's/.*photo_model.*/photo_model : 1step/' ${CASE_IN}.odi
-CASE_OUT=${CASE_IN}_1step.out
-
-for i in ${sweep_values[@]}
+for model in ${models[@]}
 do
-	sed -i "s/.*photon_energy.*/photon_energy : $i/" ${CASE_IN}.odi
-	$OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
-	mv ${CASE_IN}.odo ${CASE_IN}_${i}_1step.odo
-done
-
-sed -i 's/.*photo_model.*/photo_model : 3step/' ${CASE_IN}.odi
-CASE_OUT=${CASE_IN}_3step.out
-
-for i in ${sweep_values[@]}
-do
-	sed -i "s/.*photon_energy.*/photon_energy : $i/" ${CASE_IN}.odi
-	$OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
-	mv ${CASE_IN}.odo ${CASE_IN}_${i}_3step.odo
+    for energy in ${energies[@]}
+    do
+        for jdos_max in ${jdos_maxs[@]}
+        do
+            for jdos_space in ${jdos_spacings[@]}
+            do
+                sed -i "s/.*iprint.*/iprint : $iprint/" ${CASE_IN}.odi
+                sed -i "s/.*photo_model.*/photo_model : $model/" ${CASE_IN}.odi
+                sed -i "s/.*JDOS_SPACING.*/JDOS_SPACING : $jdos_space/" ${CASE_IN}.odi
+                sed -i "s/.*JDOS_MAX_ENERGY.*/JDOS_MAX_ENERGY : $jdos_max/" ${CASE_IN}.odi
+                sed -i "s/.*photo_photon_energy.*/photo_photon_energy : $energy/" ${CASE_IN}.odi
+                CASE_OUT=${directory}${CASE_IN}.out
+                $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT
+                mv ${CASE_IN}.odo ${directory}${CASE_IN}_${energy}_${model}_${jdos_space}_${jdos_max}_${iprint}.odo
+        done 
+    done
 done
 
 exit_code=$?

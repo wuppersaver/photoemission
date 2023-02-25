@@ -14,7 +14,7 @@ CASE_IN=TEMPLATE
 
 ########### OptaDOS Photoemission ###########
 
-OPTADOS=/rds/general/user/fcm19/home/modules_codes/optados/optados.x
+OPTADOS=~/modules_codes/optados_photo_dev/optados/optados.x
 
 cp ${CASE_IN}_optados_photo.odi ${CASE_IN}.odi
 

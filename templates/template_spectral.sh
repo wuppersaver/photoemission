@@ -27,7 +27,7 @@ cp ${CASE_IN}.bands ${CASE_IN}.bands.spec
 
 ########### Modified Spectral Task ###########
 
-PRGM=~/modules_codes/CASTEP-18.1_mod/obj/linux_x86_64_ifort17/castep.mpi
+PRGM=~/modules_codes/CASTEP-18.1_ome_new/obj/linux_x86_64_ifort17/castep.mpi
 
 cp ${CASE_IN}_spectral.param ${CASE_IN}.param
 cp ${CASE_IN}_spectral.cell ${CASE_IN}.cell
