@@ -706,15 +706,9 @@ def read_geometry_traj_file(path:str = None, seed:str = None):
     return data;
 
 def create_label_dict(kpath, kpts):
-    k_paths = kpath.get_kpoints(line_density=1, coords_are_cartesian = False)
-    naming_dict = {}
+    naming_dict = kpath.kpath['kpoints']
     labels = {}
     high_symm_indices = []
-    for i in range(len(k_paths[0])):
-        if k_paths[1][i] != '':
-            point = k_paths[1][i]
-            temp = [abs(round(k_paths[0][i][0],6)),abs(round(k_paths[0][i][1],6)),abs(round(k_paths[0][i][2],6))]
-            naming_dict[point] = tuple(temp)
     for key in naming_dict.keys():
         labels[key] = []
     for i in range(len(kpts)):
