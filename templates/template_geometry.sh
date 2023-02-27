@@ -33,7 +33,7 @@ if [ "$CONTINUE" == true ]; then
             sed -i '0,/.*STATE=.*/s//STATE=geometry_fail/' ${CASE_IN}_submission.sh
             sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
         fi
-        if grep -Fxq "LBFGS: Geometry optimization completed successfully." ${CASE_IN}.castep; then
+        if grep -Fq "LBFGS: Geometry optimization completed successfully." ${CASE_IN}.castep; then
             sed -i '0,/.*STATE=.*/s//STATE=geometry_success/' ${CASE_IN}_submission.sh
             sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
             ./${CASE_IN}_submission.sh
