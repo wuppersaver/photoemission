@@ -7,10 +7,10 @@ cd $PBS_O_WORKDIR
 
 module load intel-suite
 
-CONTINUE=false
+CONTINUE= false
 CASE_IN=TEMPLATE
-models=(1step 3step)
-energies=($(seq -f "%'.2f" 4.2 0.1 6.5))
+models=(___)
+energies=($(seq -f "%'.2f" ___ *** ---))
 jdos_maxs=(25) #($(seq -f "%'.2f" 5 1 20))
 jdos_spacings=(0.1) #($(seq -f "%'.2f" 5 1 20))
 iprint=___
@@ -28,9 +28,9 @@ if [ "${directory}" != './' ]; then
     fi
 fi
 
-for model in ${models[@]}
+for energy in ${energies[@]}
 do
-    for energy in ${energies[@]}
+    for model in ${models[@]}
     do
         for jdos_max in ${jdos_maxs[@]}
         do
@@ -49,14 +49,16 @@ do
 done
 
 exit_code=$?
-if [ "$CONTINUE" == true ]; then
+if CONTINUE; then
     echo $exit_code
     if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_photo_sweep.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_optados_photo_sweep.sh
         ./${CASE_IN}_submission.sh
+        exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_photo_sweep.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_optados_photo_sweep.sh
+        exit
     fi
 fi

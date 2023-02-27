@@ -79,14 +79,14 @@ def generate_input_files(**options):
 def generate_scripts(**options):
     blocks = {
         'Geometry' : """            sed -i '0,/.*STATE=.*/s//STATE=geometry_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[geometry]} 
         echo "GeometryOptimization"
         qsub ${calculation[geometry]} 
         exit
     fi
     if [ $INTERNAL == geometry_run ] || [ $INTERNAL == geometry_unfinished ]; then  
         sed -i '0,/.*STATE=.*/s//STATE=geometry_cont/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[geometry]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[geometry]} 
         if ! grep -Fxq "CONTINUATION" ${CASE_IN}_geometry.param; then
             echo "\nCONTINUATION" | tee -a ${CASE_IN}_geometry.param
         fi
@@ -95,37 +95,37 @@ def generate_scripts(**options):
         exit
     fi\n""",
         'Spectral':"""      sed -i '0,/.*STATE=.*/s//STATE=spectral_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[spectral]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[spectral]} 
         echo "Spectral"
         qsub ${calculation[spectral]}
         exit
     fi\n""",
         'OD_Fermi' : """        sed -i '0,/.*STATE=.*/s//STATE=od_fermi_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_all]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[optados_all]} 
         echo "OptaDOS misc"
         qsub ${calculation[optados_all]}
         exit
     fi\n""",
         'Workfunction' : """        sed -i '0,/.*STATE=.*/s//STATE=workfct_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[work_fct]}
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[work_fct]}
         echo "Setting Workfct and Volume/Area"
         qsub ${calculation[work_fct]}
         exit
     fi\n""",
         'OD_Photo': """     sed -i '0,/.*STATE=.*/s//STATE=od_photo_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo]}
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[optados_photo]}
         echo "OptaDOS Photoemission Calculation"
         qsub ${calculation[optados_photo]}
         exit
     fi\n""",
         'OD_Photo_Sweep': """       sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[optados_photo_sweep]}
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[optados_photo_sweep]}
         echo "OptaDOS Photoemission Sweep"
         qsub ${calculation[optados_photo_sweep]}
         exit
     fi\n""",
         'BandStructure': """        sed -i '0,/.*STATE=.*/s//STATE=bands_run/' ${calculation[submission]} 
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=true/'  ${calculation[bands]} 
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= true/'  ${calculation[bands]} 
         echo "Bandstructure"
         qsub ${calculation[bands]}
         exit
@@ -137,7 +137,7 @@ def generate_scripts(**options):
             exit 1
         else
             sed -i "0,/.*STATE=.*/s//STATE=${$1}_stop/" ${calculation[submission]} 
-            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/'  ${calculation[$1]} 
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/'  ${calculation[$1]} 
             qsub ${calculation[$1]}
             exit
         fi
@@ -177,21 +177,23 @@ fi\n"""
                     lines = fr.readlines()
                     for index,line in enumerate(lines):
                         if 'file_ending=___' in line:
-                            line[index] = line.replace('___',f'_{task_shorts[task]}.odi')
-
+                            lines[index] = line.replace('___',f'_{task_shorts[task]}.odi')
+                    fr.writelines(lines)
     return
 
 def generate_workfct_input(task = None, **options):
     directory = options['general']['directory']
     seed = options['general']['seed']
+    workfunction = options['workfunction']
     lines = []
-    with open('./templates/template_workfunction.sh','r') as fr:
+    with open('./templates/template_workfunction.sh','rw') as fr:
         lines = fr.readlines()
-    for index,line in enumerate(lines):
-        if 'TEMPLATE' in line:
-            lines[index] = line.replace('TEMPLATE',f'{seed}')
-    with open(f'{directory}/{seed}_workfunction.sh','w') as fw:
-        fw.writelines(lines)
+        for index,line in enumerate(lines):
+            if 'TEMPLATE' in line:
+                lines[index] = line.replace('TEMPLATE',f'{seed}')
+            if '*** ___' in line:
+                lines[index] = line.replace('*** ___', f'{int(workfunction['modify_odi'])} {int(workfunction['centered_structure'])}')
+        fr.writelines(lines)
     return
 
 def generate_castep_input(task, **options): 
@@ -388,22 +390,24 @@ def generate_optados_input(task,**options):
             lines = fr.readlines()
         if 'sweep' in task:
             sweep_options = options['optados']['sweep_options']
-            values = ' '.join([str(x) for x in list(sweep_options.values())[1:]])
+            sweep_vals = f"{sweep_options['min']} {sweep_options['stepsize']} {sweep_options['max']}"
         for index,line in enumerate(lines):
             if 'TEMPLATE' in line:
                 lines[index] = line.replace('TEMPLATE',f'{seed}')
-                                  
             if 'sweep' in task:
-                if "sweep_values=seq -f \"%'.5f\"" in line:
-                    lines[index] = line.replace('___',values)
+                if "energies=($(seq -f "%'.2f" ___ *** ---))" in line:
+                    lines[index] = line.replace('___ *** ---',sweep_vals).
                 if 's/.*photo_photon_energy.*/photo_photon_energy' in line:
                     lines[index] = line.replace('photo_photon_energy',sweep_options['parameter'])
+                if 'models=' in line:
+                    lines[index] = line.replace('___'," ".join(options['optados']['photo_options']['photo_model']))
+                if 'directory=' in line:
+                    lines[index] = line.replace('___',sweep_options['directory'])
             else:
                 if 'models=' in line:
                     lines[index] = line.replace('___','('+' '.join(options['optados']['photo_options']['photo_model'])+')')
                 if 'energy=' in line:
                     lines[index] = line.replace('___',str(options['optados']['photo_options']['photo_photon_energy']))
-        
         with open(f'{directory}/{seed}_{appendices[task]}.sh','w') as fw:
             fw.writelines(lines)
     return;

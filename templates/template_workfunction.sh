@@ -8,7 +8,7 @@ cd $PBS_O_WORKDIR
 module load anaconda3/personal
 source activate matchem
 
-CONTINUE=false
+CONTINUE= false
 
 CASE_IN=TEMPLATE
 
@@ -17,18 +17,20 @@ CASE_IN=TEMPLATE
 #sed -i 's,input_path =.*,'"input_path = \'$(pwd)\/\'"',' ~/PhD/photoemission/function_scripts/calculate_photo_properties.py
 file_ending=___
 # ARGS: directory file_ending mod_odi(bool) centered_structure?(bool)
-python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd) $file_ending 0 1
+python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd) $file_ending *** ___
 
 exit_code=$?
 echo the_exit_code=$exit_code
 
-if [ "$CONTINUE" == true ]; then
+if CONTINUE; then
     if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=workfct_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_workfunction.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_workfunction.sh
         ./${CASE_IN}_submission.sh
+        exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=workfct_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_workfunction.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_workfunction.sh
+        exit
     fi
 fi

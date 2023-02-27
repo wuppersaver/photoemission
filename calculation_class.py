@@ -4,7 +4,7 @@ from ase.build import fcc111
 from pymatgen.core.structure import Structure
 import warnings
 class PhotoemissionCalculation:
-    def __init__(self, structure:Atoms = None, general_options = None,castep_options = None,optados_options = None) -> None:
+    def __init__(self, structure:Atoms = None, general_options = None,castep_options = None,workfunction_options = None,optados_options = None) -> None:
         GeneralOptions = {
             'seed' : 'Test',
             'directory': f"./structures/Test",
@@ -75,8 +75,13 @@ class PhotoemissionCalculation:
                 'max' : 5.5,
                 },
         }
+        WorkfunctionOptions = {
+            'modify_odi'                : False,
+            'centered_structure'        : False,
+            }
         if structure == None : structure = fcc111('Cu', size=(1,1,5), vacuum=20.0)
         if general_options == None : general_options = GeneralOptions
         if castep_options == None : castep_options = CastepOptions
         if optados_options == None : optados_options = OptaDosOptions
-        self.options = {'general':general_options,'structure':structure,'castep':castep_options,'optados':optados_options}
+        if workfunction_options == None : workfunction_options = WorkfunctionOptions
+        self.options = {'general':general_options,'structure':structure,'castep':castep_options,'workfunction':workfunction_options,'optados':optados_options}
