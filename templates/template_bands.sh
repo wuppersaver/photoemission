@@ -7,7 +7,7 @@ cd $PBS_O_WORKDIR
 
 module load mpi intel-suite
 
-CONTINUE=false
+CONTINUE= false
 
 CASE_IN=TEMPLATE
 
@@ -37,15 +37,17 @@ cp ${CASE_IN}.bands ${CASE_IN}.bands.o2b
 
 echo the_exit_code-b2ob=$exit_code
 
-if [ "$CONTINUE" == true ]; then
+if CONTINUE; then
     echo $exit_code
     if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=bands_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_bands.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_bands.sh
         ./${CASE_IN}_submission.sh
+        exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=bands_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_bands.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_bands.sh
+        exit
     fi
 fi
 

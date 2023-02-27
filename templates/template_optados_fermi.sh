@@ -7,7 +7,7 @@ cd $PBS_O_WORKDIR
 
 module load mpi intel-suite
 
-CONTINUE=false
+CONTINUE= false
 
 CASE_IN=TEMPLATE
 
@@ -25,13 +25,15 @@ mv ${CASE_IN}.odo ${CASE_IN}_fermi.odo
 
 echo the_exit_code=$exit_code
 
-if [ "$CONTINUE" == true ]; then
+if CONTINUE; then
     if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=od_fermi_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_fermi.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_optados_fermi.sh
         ./${CASE_IN}_submission.sh
+        exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=od_fermi_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_fermi.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_optados_fermi.sh
+        exit
     fi
 fi
