@@ -166,7 +166,7 @@ fi\n"""
             lines[index] = line.replace('TEMPLATE',f'{seed}')
     lines.append(blocks[tasks[0]])
     for index,task in enumerate(tasks[1:]):
-        lines.append(f"    if [[ $INTERNAL == {task_shorts[tasks[index]]}_success ]]; then\n")
+        lines.append(f"    if [ $INTERNAL == {task_shorts[tasks[index]]}_success ]; then\n")
         lines.append(blocks[task])
     lines.append(blocks['final'])
     with open(f'{directory}/{seed}_submission.sh','w') as fw:
@@ -192,7 +192,7 @@ def generate_workfct_input(task = None, **options):
             if 'TEMPLATE' in line:
                 lines[index] = line.replace('TEMPLATE',f'{seed}')
             if '*** ___' in line:
-                lines[index] = line.replace('*** ___', f'{int(workfunction['modify_odi'])} {int(workfunction['centered_structure'])}')
+                lines[index] = line.replace('*** ___', f"{int(workfunction['modify_odi'])} {int(workfunction['centered_structure'])}")
         fr.writelines(lines)
     return
 
@@ -399,8 +399,8 @@ def generate_optados_input(task,**options):
             if 'TEMPLATE' in line:
                 lines[index] = line.replace('TEMPLATE',f'{seed}')
             if 'sweep' in task:
-                if "energies=($(seq -f "%'.2f" ___ *** ---))" in line:
-                    lines[index] = line.replace('___ *** ---',sweep_vals).
+                if "energies=($(seq -f \"%'.2f\" ___ *** ---))" in line:
+                    lines[index] = line.replace('___ *** ---',sweep_vals)
                 if 's/.*photo_photon_energy.*/photo_photon_energy' in line:
                     lines[index] = line.replace('photo_photon_energy',sweep_options['parameter'])
                 if 'models=' in line:
