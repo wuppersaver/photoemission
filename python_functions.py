@@ -359,19 +359,23 @@ def generate_optados_input(task,**options):
             output.append(f"dos_per_volume  : {str(options['optados']['dos_per_volume'])}\n")
     else:
         photo = options['optados']['photo_options']
-        for item in photo.keys():
-            if item == 'optics_qdir':
-                output.append(f"{item} : {photo[item][0]} {photo[item][1]} {photo[item][2]}\n")
+        for key in photo.keys():
+            if key == 'optics_qdir':
+                output.append(f"{key} : {photo[item][0]} {photo[item][1]} {photo[item][2]}\n")
                 continue
-            if item == 'optics_intraband':
-                if photo[item]:
-                    output.append(f"{item} : TRUE\n")
+            if key == 'optics_intraband':
+                if photo[key]:
+                    output.append(f"{key} : TRUE\n")
                 continue
-            if item == 'hybrid_linear':
-                if photo[item]:
-                    output.append(f"{item} : TRUE\n")
+            if key == 'hybrid_linear':
+                if photo[key]:
+                    output.append(f"{key} : TRUE\n")
                 continue
-            output.append(f"{item} : {photo[item]}\n")
+            if key == 'use_devel_flag':
+                if photo[key]:
+                    output.append(f"{'devel_flag'} : {photo['devel_flag']}")
+                continue
+            output.append(f"{key} : {photo[key]}\n")
         if options['optados']['dos_per_volume']:
             output.append(f"dos_per_volume  : {str(options['optados']['dos_per_volume'])}\n")
     appendices = {
