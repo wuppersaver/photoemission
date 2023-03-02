@@ -8,8 +8,7 @@ cd $PBS_O_WORKDIR
 module load mpi intel-suite
 
 CONTINUE= false
-STATE= false
-TIGHT_CONV=$STATE
+TIGHT_CONV= false
 CASE_IN=TEMPLATE
 
 ########### Geometry Optimization ###########
@@ -39,14 +38,14 @@ if CONTINUE; then
             if TIGHT_CONV; then
                 sed -i '0,/.*STATE=.*/s//STATE=geometry_success/' ${CASE_IN}_submission.sh
                 sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
-                sed -i '0,/.*STATE=.*/s//STATE= false/' ${CASE_IN}_geometry.sh
+                sed -i '0,/.*TIGHT_CONV=.*/s//TIGHT_CONV= false/' ${CASE_IN}_geometry.sh
                 ./${CASE_IN}_submission.sh
                 exit
             else
                 mv ${CASE_IN}.castep ${CASE_IN}.castep.loose_conv
                 sed -i '0,/.*STATE=.*/s//STATE=geometry_unfinished/' ${CASE_IN}_submission.sh
                 sed -i '0,/.*ELEC_ENERGY_TOL:.*/s//ELEC_ENERGY_TOL: 1e-08 eV/' ${CASE_IN}_geometry.param
-                sed -i '0,/.*STATE=.*/s//STATE= true/' ${CASE_IN}_geometry.sh
+                sed -i '0,/.*TIGHT_CONV=.*/s//TIGHT_CONV= true/' ${CASE_IN}_geometry.sh
                 sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
                 ./${CASE_IN}_submission.sh
                 exit

@@ -34,6 +34,7 @@ $PRGMO2B $CASE_IN 2>&1 | tee -a $CASE_OUT
 exit_code=$?
 
 cp ${CASE_IN}.bands ${CASE_IN}.bands.o2b
+rm ${CASE_IN}.orbitals
 
 echo the_exit_code-b2ob=$exit_code
 

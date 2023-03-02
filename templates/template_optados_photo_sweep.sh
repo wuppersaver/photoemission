@@ -38,8 +38,8 @@ do
             do
                 sed -i "s/.*iprint.*/iprint : $iprint/" ${CASE_IN}.odi
                 sed -i "s/.*photo_model.*/photo_model : $model/" ${CASE_IN}.odi
-                sed -i "s/.*JDOS_SPACING.*/JDOS_SPACING : $jdos_space/" ${CASE_IN}.odi
-                sed -i "s/.*JDOS_MAX_ENERGY.*/JDOS_MAX_ENERGY : $jdos_max/" ${CASE_IN}.odi
+                sed -i "s/.*jdos_spacing.*/jdos_spacing : $jdos_space/" ${CASE_IN}.odi
+                sed -i "s/.*jdos_max_energy.*/jdos_max_energy : $jdos_max/" ${CASE_IN}.odi
                 sed -i "s/.*photo_photon_energy.*/photo_photon_energy : $energy/" ${CASE_IN}.odi
                 CASE_OUT=${directory}${CASE_IN}.out
                 $OPTADOS $CASE_IN 2>&1 | tee -a $CASE_OUT

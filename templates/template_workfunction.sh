@@ -23,7 +23,7 @@ exit_code=$?
 echo the_exit_code=$exit_code
 
 if CONTINUE; then
-    if [[ $exit_code -eq 0 ]] ; then
+    if [ $exit_code -eq 0 ]; then
         sed -i '0,/.*STATE=.*/s//STATE=workfct_success/' ${CASE_IN}_submission.sh
         sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_workfunction.sh
         ./${CASE_IN}_submission.sh
