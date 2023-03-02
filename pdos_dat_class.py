@@ -4,8 +4,12 @@ import pandas as pd
 from pymatgen.electronic_structure.dos import *
 
 class PDosDataFrame:
-    def __init__(self, path:str) -> None:
-        energies, total= [],[]
+    def __init__(self, path:str, choice:str) -> None:
+        choices = {
+            'site' : 'sites',
+            'orbital': 'angular'
+        }
+        energies, total, species = [],[],[]
         columns, channels, column_keys, totals = [], [], {}, {Spin.up:[], Spin.down:[]}
         header_string = '#+----------------------------------------------------------------------------+'
         header, values = [],[]
@@ -25,7 +29,7 @@ class PDosDataFrame:
                                 line = next(g)    
                             efermi = float(line.split()[6])
                             #print('No fermi energy found, check cursor position!')
-            if '.pdos.dat' in item:
+            if f'{choices[choice]}.pdos.dat' in item:
                 values = np.loadtxt(path+item)
                 with open(path+item,'r') as f:
                     for line in f:
@@ -36,12 +40,15 @@ class PDosDataFrame:
         for i, item in enumerate(header):
             if 'Column:' in item:
                 column = {}
+                species_temp = {}
                 if 'Spin' in header[i+1]: 
                     spin_channels = True
                     print(spin_channels)
                 t = i+2
                 while header_string not in header[t]:
                     atom = ''.join(header[t][1:3])
+                    specie = header[t][1]
+                    if specie not in species_temp: species_temp[f'{specie}'] = []
                     if atom in column:
                         column[atom].append(header[t][3])
                         if spin_channels: channels.append(header[t][4])
@@ -56,7 +63,11 @@ class PDosDataFrame:
                     for item in column[atom]:
                         temp += item
                     temp += ' '
-                columns.append(temp)
+                columns.append(temp[:-1])
+                temp = ''
+                for specie in species_temp.keys():
+                    temp += f'{specie}'
+                species.append(temp)
         data = []
         self.total_dos = []
         normed = values/np.nanmax(values,axis=0)
@@ -70,27 +81,27 @@ class PDosDataFrame:
                 for idx,item in enumerate(row[1:]):
                     if shifted_efermi: 
                         if spin_channels: 
-                            data.append([columns[idx],channels[idx],row[0],item])
-                        else: data.append([columns[idx],row[0],item])
+                            data.append([species[idx],columns[idx],channels[idx],row[0],item])
+                        else: data.append([species[idx],columns[idx],row[0],item])
                     else: 
-                        if spin_channels: data.append([columns[idx],channels[idx],row[0]-efermi,item])
-                        else: data.append([columns[idx],row[0]-efermi,item])
+                        if spin_channels: data.append([species[idx],columns[idx],channels[idx],row[0]-efermi,item])
+                        else: data.append([species[idx],columns[idx],row[0]-efermi,item])
         for row in normed:
             if sum(abs(row[1:]))>0:
                 for idx,item in enumerate(row[1:]):
                     if shifted_efermi: 
                         if spin_channels: 
-                            data_norm.append([columns[idx],channels[idx],row[0],item])
-                        else: data_norm.append([columns[idx],row[0],item])
+                            data_norm.append([species[idx],columns[idx],channels[idx],row[0],item])
+                        else: data_norm.append([species[idx],columns[idx],row[0],item])
                     else: 
-                        if spin_channels: data_norm.append([columns[idx-1],channels[idx],row[0]-efermi,item])
-                        else: data_norm.append([columns[idx],row[0]-efermi,item])
+                        if spin_channels: data_norm.append([species[idx],columns[idx-1],channels[idx],row[0]-efermi,item])
+                        else: data_norm.append([species[idx],columns[idx],row[0]-efermi,item])
         if spin_channels: 
-            self.df = pd.DataFrame(data,columns = ['Site','Spin','Energy[eV]','pDOS'])  
-            self.df_norm = pd.DataFrame(data_norm,columns = ['Site','Spin','Energy[eV]','pDOS(normalised)'])
+            self.df = pd.DataFrame(data,columns = ['Species','Site','Spin','Energy[eV]','pDOS'])  
+            self.df_norm = pd.DataFrame(data_norm,columns = ['Species','Site','Spin','Energy[eV]','pDOS(normalised)'])
         else: 
-            self.df = pd.DataFrame(data,columns = ['Site','Energy[eV]','pDOS'])
-            self.df_norm = pd.DataFrame(data_norm,columns = ['Site','Energy[eV]','pDOS(normalised)'])
+            self.df = pd.DataFrame(data,columns = ['Species','Site','Energy[eV]','pDOS'])
+            self.df_norm = pd.DataFrame(data_norm,columns = ['Species','Site','Energy[eV]','pDOS(normalised)'])
         self.total_dos = np.array(self.total_dos)
         self.total_dos_norm =  self.total_dos / np.nanmax(self.total_dos[:,1])
         self.total_dos_norm[:,0] = self.total_dos[:,0]
