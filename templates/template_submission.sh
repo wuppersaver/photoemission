@@ -14,7 +14,7 @@ calculation[optados_photo]=${CASE_IN}_optados_photo.sh
 calculation[submission]=${CASE_IN}_submission.sh
 
 if [[ $# -eq 0 ]] ; then #checking, if arguments are present in the bash call
-    if [[ $INTERNAL == *stop* ]]; then
+    if [[ $INTERNAL -eq *stop* ]]; then
         exit
     fi
-    if [[ $INTERNAL == new ]]; then
+    if [[ $INTERNAL -eq new ]]; then

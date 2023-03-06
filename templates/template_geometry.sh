@@ -7,8 +7,8 @@ cd $PBS_O_WORKDIR
 
 module load mpi intel-suite
 
-CONTINUE= false
-TIGHT_CONV= false
+CONTINUE=false
+TIGHT_CONV=false
 CASE_IN=TEMPLATE
 
 ########### Geometry Optimization ###########
@@ -27,38 +27,38 @@ cp ${CASE_IN}.pot_fmt ${CASE_IN}.potfmt.geometry
 cp ${CASE_IN}.den_fmt ${CASE_IN}.denfmt.geometry
 
 echo the_exit_code=$exit_code
-if CONTINUE; then
+if [ "$CONTINUE" -eq true ]; then
     if [[ $exit_code -eq 0 ]] ; then
         if ! test -e ${CASE_IN}.castep; then
             sed -i '0,/.*STATE=.*/s//STATE=geometry_fail/' ${CASE_IN}_submission.sh
-            sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
             exit
         fi
         if grep -Fq "LBFGS: Geometry optimization completed successfully." ${CASE_IN}.castep; then
-            if TIGHT_CONV; then
+            if [ "$TIGHT_CONV" -eq true ]; then
                 sed -i '0,/.*STATE=.*/s//STATE=geometry_success/' ${CASE_IN}_submission.sh
-                sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
-                sed -i '0,/.*TIGHT_CONV=.*/s//TIGHT_CONV= false/' ${CASE_IN}_geometry.sh
+                sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
+                sed -i '0,/.*TIGHT_CONV=.*/s//TIGHT_CONV=false/' ${CASE_IN}_geometry.sh
                 ./${CASE_IN}_submission.sh
                 exit
             else
                 mv ${CASE_IN}.castep ${CASE_IN}.castep.loose_conv
                 sed -i '0,/.*STATE=.*/s//STATE=geometry_unfinished/' ${CASE_IN}_submission.sh
                 sed -i '0,/.*ELEC_ENERGY_TOL:.*/s//ELEC_ENERGY_TOL: 1e-08 eV/' ${CASE_IN}_geometry.param
-                sed -i '0,/.*TIGHT_CONV=.*/s//TIGHT_CONV= true/' ${CASE_IN}_geometry.sh
-                sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
+                sed -i '0,/.*TIGHT_CONV=.*/s//TIGHT_CONV=true/' ${CASE_IN}_geometry.sh
+                sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
                 ./${CASE_IN}_submission.sh
                 exit
             fi
         else
             sed -i '0,/.*STATE=.*/s//STATE=geometry_unfinished/' ${CASE_IN}_submission.sh
-            sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
+            sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
             ./${CASE_IN}_submission.sh
             exit
         fi
     else
         sed -i '0,/.*STATE=.*/s//STATE=geometry_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_geometry.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_geometry.sh
         exit
     fi
 fi

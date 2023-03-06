@@ -7,7 +7,7 @@ cd $PBS_O_WORKDIR
 
 module load mpi intel-suite
 
-CONTINUE= false
+CONTINUE=false
 
 CASE_IN=TEMPLATE
 
@@ -39,15 +39,15 @@ exit_code=$?
 cp ${CASE_IN}.bands ${CASE_IN}.bands.spec.mod
 echo the_exit_code=$exit_code
 
-if CONTINUE; then
+if [ "$CONTINUE" -eq true ]; then
     if [[ $exit_code -eq 0 ]] ; then
         sed -i '0,/.*STATE=.*/s//STATE=spectral_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_spectral.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_spectral.sh
         ./${CASE_IN}_submission.sh
         exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=spectral_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_spectral.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_spectral.sh
         exit
     fi
 fi

@@ -7,7 +7,7 @@ cd $PBS_O_WORKDIR
 
 module load intel-suite
 
-CONTINUE= false
+CONTINUE=false
 CASE_IN=TEMPLATE
 models=(___)
 energies=($(seq -f "%'.2f" ___ *** ---))
@@ -18,7 +18,7 @@ directory=___
 
 ########### OptaDOS Photoemission ###########
 
-OPTADOS=~/modules_codes/optados_photo_dev/optados/volume/optados.x
+OPTADOS=~/modules_codes/optados_photo_dev/optados/optados.x
 
 cp ${CASE_IN}_optados_photo.odi ${CASE_IN}.odi
 
@@ -49,16 +49,16 @@ do
 done
 
 exit_code=$?
-if CONTINUE; then
+if [ "$CONTINUE" -eq true ]; then
     echo $exit_code
-    if [[ $exit_code -eq 0 ]] ; then
+    if [ $exit_code -eq 0 ] ; then
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_optados_photo_sweep.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_photo_sweep.sh
         ./${CASE_IN}_submission.sh
         exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=od_photo_sweep_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_optados_photo_sweep.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_optados_photo_sweep.sh
         exit
     fi
 fi

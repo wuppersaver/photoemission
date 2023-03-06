@@ -8,7 +8,7 @@ cd $PBS_O_WORKDIR
 module load anaconda3/personal
 source activate matchem
 
-CONTINUE= false
+CONTINUE=false
 
 CASE_IN=TEMPLATE
 
@@ -22,15 +22,15 @@ python ~/PhD/photoemission/function_scripts/calculate_photo_properties.py $(pwd)
 exit_code=$?
 echo the_exit_code=$exit_code
 
-if CONTINUE; then
+if [ "$CONTINUE" -eq true ]; then
     if [ $exit_code -eq 0 ]; then
         sed -i '0,/.*STATE=.*/s//STATE=workfct_success/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_workfunction.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_workfunction.sh
         ./${CASE_IN}_submission.sh
         exit
     else
         sed -i '0,/.*STATE=.*/s//STATE=workfct_fail/' ${CASE_IN}_submission.sh
-        sed -i '0,/.*CONTINUE=.*/s//CONTINUE= false/' ${CASE_IN}_workfunction.sh
+        sed -i '0,/.*CONTINUE=.*/s//CONTINUE=false/' ${CASE_IN}_workfunction.sh
         exit
     fi
 fi
