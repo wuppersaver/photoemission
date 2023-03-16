@@ -4,11 +4,13 @@ import pandas as pd
 from pymatgen.electronic_structure.dos import *
 
 class PDosDataFrame:
-    def __init__(self, path:str, choice:str) -> None:
+    def __init__(self, path:str, choice:str, spec:str=None) -> None:
         choices = {
             'site' : 'sites',
-            'orbital': 'angular'
+            'orbital': 'angular',
         }
+        if choice == 'specified' and spec != None:
+            choices['specified'] = spec
         energies, total, species = [],[],[]
         columns, channels, column_keys, totals = [], [], {}, {Spin.up:[], Spin.down:[]}
         header_string = '#+----------------------------------------------------------------------------+'
@@ -31,6 +33,7 @@ class PDosDataFrame:
                             #print('No fermi energy found, check cursor position!')
             if f'{choices[choice]}.pdos.dat' in item:
                 values = np.loadtxt(path+item)
+                # print(values)
                 with open(path+item,'r') as f:
                     for line in f:
                         line_values = line.strip().split()
@@ -70,22 +73,26 @@ class PDosDataFrame:
                 species.append(temp)
         data = []
         self.total_dos = []
-        normed = values/np.nanmax(values,axis=0)
+        sums = sum(values[:,1:])
+        normed = np.zeros(values.shape)
+        for idx,summ in enumerate(sums):
+            if summ > 1E-100:
+                normed[:,idx] = values[:,idx]/np.nanmax(values[:,idx],axis=0)
         normed[:,0] = values[:,0]
         data_norm = []
         for row in values:
             if sum(abs(row[1:]))>0:
                 if shifted_efermi: 
-                    self.total_dos.append([row[0],sum(abs(row[1:]))])
-                else: self.total_dos.append([row[0]-efermi,sum(abs(row[1:]))])
+                    self.total_dos.append([round(row[0],3),sum(abs(row[1:]))])
+                else: self.total_dos.append([round(row[0]-efermi,3),sum(abs(row[1:]))])
                 for idx,item in enumerate(row[1:]):
                     if shifted_efermi: 
                         if spin_channels: 
-                            data.append([species[idx],columns[idx],channels[idx],row[0],item])
-                        else: data.append([species[idx],columns[idx],row[0],item])
+                            data.append([species[idx],columns[idx],channels[idx],round(row[0],3),item])
+                        else: data.append([species[idx],columns[idx],round(row[0],3),item])
                     else: 
-                        if spin_channels: data.append([species[idx],columns[idx],channels[idx],row[0]-efermi,item])
-                        else: data.append([species[idx],columns[idx],row[0]-efermi,item])
+                        if spin_channels: data.append([species[idx],columns[idx],channels[idx],round(row[0]-efermi,3),item])
+                        else: data.append([species[idx],columns[idx],round(row[0]-efermi,3),item])
         for row in normed:
             if sum(abs(row[1:]))>0:
                 for idx,item in enumerate(row[1:]):

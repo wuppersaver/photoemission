@@ -63,8 +63,8 @@ class OptaDOSOutput:
 
             if 'Projected Density Of States Calculation' in line:
                 #print('fermi analysis')
-                for i in range(6):
-                    line = next(f)
+                # for i in range(6):
+                #     line = next(f)
                 line = lines[idx+6].strip().split()
                 #print(line)
                 self.fermi_e = float(line[6])
