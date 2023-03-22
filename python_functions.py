@@ -488,7 +488,8 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
             x, potential,cell = average_potential_from_file(path, potential = True)
         if '_fermi.odo' in item:
             odo_pth = directory + item
-            fermi_level = OptaDOSOutput(odo_pth).fermi_e
+            fermi_level = OptaDOSOutput(path= odo_pth)
+            fermi_level = fermi_level.fermi_e
             found -= 1
     if found != 0:
         file = [' Potential File (.pot_fmt)',' Opatdos File (_all.odo)','ne of either files']
