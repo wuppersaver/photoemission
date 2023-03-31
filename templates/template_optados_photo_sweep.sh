@@ -5,11 +5,24 @@
 #PBS -j oe
 
 cd $PBS_O_WORKDIR
+
+cleanup() {
+    cd $PBS_O_WORKDIR
+    mkdir ./tmp_$PBS_JOBID/
+    cp $TMPDIR/* ./tmp_$PBS_JOBID/
+}
+
+exithandler() {
+    echo "Job was killed on $date" | tee -a $TMPDIR/$CASE_IN.err
+    cleanup
+    exit
+}
+
+trap exithandler SIGTERM
+
 echo "<qsub_standard_output>"
+echo Start Date and Time
 date
-echo "<qstat -f $PBS_JOBID>"
-qstat -f $PBS_JOBID
-echo "</qstat -f $PBS_JOBID>"
 
 # Make sure any symbolic links are resolved to absolute path
 export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
