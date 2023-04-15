@@ -2,7 +2,26 @@
 #PBS -N TEMPLATE_bands
 #PBS -l select=1:ncpus=64:mem=200GB
 #PBS -l walltime=08:00:00
+#PBS -j oe
 
+cd $PBS_O_WORKDIR
+echo "<qsub_standard_output>"
+date
+echo "<qstat -f $PBS_JOBID>"
+qstat -f $PBS_JOBID
+echo "</qstat -f $PBS_JOBID>"
+
+# Make sure any symbolic links are resolved to absolute path
+export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
+
+# Set the number of threads to 1
+#   This prevents any system libraries from automatically
+#   using threading.
+# export OMP_NUM_THREADS=1
+env
+echo "</qsub_standard_output>"
+
+#to sync nodes
 cd $PBS_O_WORKDIR
 
 module load mpi intel-suite
