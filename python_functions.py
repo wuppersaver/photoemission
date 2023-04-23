@@ -965,7 +965,7 @@ def plot_dos_optados(path:str=None, plot_up:bool = True, plot_down:bool = False,
 
 def read_proj_dos_optados(path:str=None,  export_json = False,):
     energies, total= [],[]
-    columns, projections, column_keys, totals = {}, {}, {}, {Spin.up:[], Spin.down:[]}
+    columns, projections, column_keys, totals = {}, {}, {}, {}
     header_string = '#+----------------------------------------------------------------------------+'
     header, values = [],[]
     spin_channels = False
@@ -992,8 +992,8 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
                     line_values = line.strip().split()
                     if '#' in line_values[0]:
                         header.append(line_values)
-                    else:
-                        values.append(line_values)
+                    else: break
+            pdos_values = np.genfromtxt(fname=path+item,comments='#')
             found[1] = True
     files=[f'Optados Output',f'pDOS Data File']
     for index,item in enumerate(found):
@@ -1027,30 +1027,30 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
                     column_keys[key].append(spin)                                           # Append pin channel to generated column key tuple
         else:                                                                               # If no spin channel is included in the file, initialise projections as {atom: {orbital1: [], ... }}
             if orbital not in projections[atom].keys():projections[atom][orbital] = []
-    for item in values:
-        item = [float(i) for i in item]
-        if not all(abs(elem) == item[1] for elem in item[1:]):
-            if not shifted_efermi: energies.append(item[0]-efermi)
-            else: energies.append(item[0])
-            temp_total, temp_up, temp_down = 0,0,0
-            for i in range(len(item[1:])):
-                keys = column_keys[str(i+1)]
-                if spin_channels:
-                    local_dos = float(item[i+1])
-                    projections[keys[0]][keys[1]][keys[2]].append(local_dos)
-                    if keys[2] == 'Down':
-                        temp_total += local_dos * -1
-                        temp_down += local_dos
-                    else:
-                        temp_total += local_dos
-                        temp_up += local_dos
-                else:
-                    projections[keys[0]][keys[1]].append(float(item[i+1]))
-                    temp_total = temp_total + float(item[i+1])
-            total.append(temp_total)
-            totals[Spin.up].append(temp_up)
-            totals[Spin.down].append(temp_down)
-    if export_json:                                                             # Export currently gives errors due to inconsistencies within pymatgen DOS class                                                             
+    
+    # print(pdos_values.shape)
+    energies = pdos_values[:,0]
+    pdos_values = pdos_values[:,1:]
+    if spin_channels:
+        total_up = np.zeros(energies.shape)
+        total_down = np.zeros(energies.shape)
+        for i in range(pdos_values.shape[1]):
+            if i%2 == 0:
+                total_down += pdos_values[:,i]
+                projections[column_keys[str(i+1)][0]][column_keys[str(i+1)][1]][column_keys[str(i+1)][2]] = -1*pdos_values[:,i]
+            else:
+                total_up += pdos_values[:,i]
+                projections[column_keys[str(i+1)][0]][column_keys[str(i+1)][1]][column_keys[str(i+1)][2]] = pdos_values[:,i]
+        totals[Spin.up] = total_up
+        totals[Spin.down] = total_down
+    else:
+        totals[Spin.up] = np.sum(pdos_values,axis=-1)
+        for i in range(pdos_values.shape[1]):
+            projections[column_keys[str(i+1)][0]][column_keys[str(i+1)][1]] = pdos_values[:,i]
+    energies = energies[np.nonzero(np.sum(pdos_values,axis=-1))]
+    totals[Spin.up] = totals[Spin.up][np.nonzero(totals[Spin.up])]
+    if spin_channels: totals[Spin.down] = totals[Spin.down][np.nonzero(totals[Spin.down])]
+    if export_json: # Export currently gives errors due to inconsistencies within pymatgen DOS class                                                             
         cell = read_cell2pmg(path = path+f"{seed}.cell")
         tot_dos = Dos(energies = energies, densities = totals,efermi = 0)
         proj_dos = CompleteDos(cell, total_dos = tot_dos, pdoss = projections)
@@ -1059,15 +1059,15 @@ def read_proj_dos_optados(path:str=None,  export_json = False,):
             json.dump(proj_dos.as_dict(), f)
     data = {
         'energies' : energies,
-        'total' : total,
+        # 'total' : total,
         'totals' : totals,
         'projections' : projections,
         'seed' : seed,
         'columns' : columns,
         'spin channels' : spin_channels,
-
     }
-    return data;
+    dos_pmg = Dos(energies=energies, densities = totals,efermi=efermi)
+    return data,dos_pmg;
 
 def plot_proj_dos_optados(data:dict=None,plot_up:bool = True, plot_down:bool = False, plot_total:bool = False, xlimit = None,figsize = (12,5)):
     plt.style.use('seaborn-darkgrid')

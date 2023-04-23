@@ -1,7 +1,9 @@
-import numpy as np
-import matplotlib.lines as mlines
 import math
+import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+import numpy as np
+
+
 #Everything below this is to plot bandstructure plots with functions adapted from the pymatgen module
 
 def get_bs_plot(
