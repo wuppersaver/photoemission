@@ -580,8 +580,9 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
     listOfFiles = os.listdir(path)
      # create output classes for each of the output files
     for item in listOfFiles:
+        print(item.split('.')[-1])
         if not suffix == None:
-            if suffix in item:
+            if suffix in item.split('.')[-1]:
                 bands_item = item
                 found = True
                 seed = bands_item.replace('.bands','')
