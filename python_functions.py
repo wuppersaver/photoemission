@@ -572,7 +572,7 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
     num_kpoints, num_spin_comps, num_electrons_up, num_electrons_down, num_bands, fermi_energy = 0,0,0,0,0,0
     kpts_coordinates = []
     eigenvalues = {}
-    cell = []
+    cell = np.zeros((3,3))
     found = False
     if path == None:
         path = f'./structures/'
@@ -580,7 +580,7 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
     listOfFiles = os.listdir(path)
      # create output classes for each of the output files
     for item in listOfFiles:
-        print(item.split('.')[-1])
+        # print(item.split('.')[-1])
         if not suffix == None:
             if suffix in item.split('.')[-1]:
                 bands_item = item
@@ -594,42 +594,40 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
     if not found: raise EOFError('The supplied path did not contain a fitting bands file. Please ensure a proper *.bands file exists!')
 
     with open(f'{path}{bands_item}','r') as f:
-        for line in f:
-            line = line.strip()
-            if 'Number of k-points' in line:
-                num_kpoints = int(line.split()[3])
-                num_spin_comps = int(next(f).split()[4])
-                num_electrons = next(f).split()
-                num_electrons_up = float(num_electrons[3])
-                num_bands = int(next(f).split()[3])
-                fermi_energy = float(next(f).split()[5])*27.2113966
-                #print(fermi_energy)
+        lines = f.readlines()
 
-                kpts_coordinates = np.zeros((num_kpoints,3))
-                eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
-                if num_spin_comps > 1:
-                    num_electrons_down = float(num_electrons[4])
-                    eigenvalues[Spin.down] = np.zeros([num_bands, num_kpoints])
+    print(f'{path}{bands_item}')
+    
+    for idx,line in enumerate(lines):
+        line = line.strip()
+        if 'Number of k-points' in line:
+            num_kpoints = int(lines[idx].split()[3])
+            num_spin_comps = int(lines[idx+1].split()[4])
+            num_electrons = lines[idx+2].split()
+            num_electrons_up = float(num_electrons[3])
+            num_bands = int(lines[idx+3].split()[3])
+            fermi_energy = float(lines[idx+4].split()[5])*27.2113966
+            #print(fermi_energy)
 
-                next(f)
-                for i in range(3):
-                    line = next(f)
-                    print(line)
-                    cell.append([float(x) for x in line.split()])
-                print(cell)
-                lattice_obj = Lattice(cell)
-
-            if line.split()[0] == 'K-point':
-                temp = line.split()
-                index = int(temp[1])-1
-                kpts_coordinates[index] = [float(temp[2]),float(temp[3]),float(temp[4])]
-                next(f)
-                for i in range(num_bands):
-                    eigenvalues[Spin.up][i][index] = float(next(f).strip())*27.2113966
-                if num_spin_comps > 1:
-                    next(f)
-                    for i in range(num_bands):
-                        eigenvalues[Spin.down][i][index] = float(next(f).strip())*27.2113966
+            kpts_coordinates = np.zeros((num_kpoints,3))
+            eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
+            if num_spin_comps > 1:
+                num_electrons_down = float(num_electrons[4])
+                eigenvalues[Spin.down] = np.zeros([num_bands, num_kpoints])
+            for i in range(3):
+                cell[i,:] = [float(x) for x in lines[idx+6+i].split()]
+            print(cell)
+            lattice_obj = Lattice(cell)
+        if 'K-point ' in line and 'Number of k-points' not in line:
+            # print('K-point') 
+            temp = line.split()
+            index = int(temp[1])-1
+            kpts_coordinates[index] = [float(temp[2]),float(temp[3]),float(temp[4])]
+            for i in range(num_bands):
+                eigenvalues[Spin.up][i][index] = float(lines[idx+2+i].strip())*27.2113966
+            if num_spin_comps > 1:
+                for i in range(num_bands-1):
+                    eigenvalues[Spin.down][i][index] = float([idx+2+num_bands+1+i].strip())*27.2113966
 
     if cell_file == None:
         for item in listOfFiles:
@@ -639,13 +637,14 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
         kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(cell_file)).get_primitive_standard_structure())#Should use the Setyawan-Curtarolo Convention
         
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
-    print(high_symm_dict,high_symm_indices)
+    print(high_symm_dict)
+    print(high_symm_indices)
     print(num_kpoints)
     final_kpt_coordinates = np.zeros((num_kpoints+len(high_symm_indices)-2,3))
     final_eigenvalues = {Spin.up : np.zeros([num_bands, num_kpoints+len(high_symm_indices)-2])}
     if num_spin_comps > 1:
         final_eigenvalues = {Spin.down : np.zeros([num_bands, num_kpoints+len(high_symm_indices)-2])}
-
+    print(high_symm_indices)
     for i in range(len(high_symm_indices)-1):
         final_kpt_coordinates[high_symm_indices[i]+i:high_symm_indices[i+1]+1+i] = kpts_coordinates[high_symm_indices[i]:high_symm_indices[i+1]+1]
         final_eigenvalues[Spin.up][:,high_symm_indices[i]+i:high_symm_indices[i+1]+1+i] = eigenvalues[Spin.up][:,high_symm_indices[i]:high_symm_indices[i+1]+1]
