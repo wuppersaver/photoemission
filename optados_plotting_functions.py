@@ -91,7 +91,7 @@ def get_scaled_distances(cartesian):
 def read_bands_file(path:str):
     hartree2eV = 27.21139664
     bohr2ang = 0.529177249
-    lattice = []
+    lattice, weights = [], []
     data = {}
     with open(path,'r') as f:
         lines = f.readlines()
@@ -110,6 +110,7 @@ def read_bands_file(path:str):
     for k in range(num_kpoints):
         kpt_line_index = 9+k*length_kpt_block
         frac=np.array([float(x) for x in lines[kpt_line_index].strip().split()[2:5]])
+        weights.append(float(lines[kpt_line_index].strip().split()[5]))
         kpt_cart[k] = np.dot(rec_lattice,frac)
         kpt_frac[k] = frac
         for j in range(num_spins):
@@ -122,6 +123,7 @@ def read_bands_file(path:str):
     data['kpt_frac'] = kpt_frac
     data['num_eigen'] = num_bands
     data['num_kpt'] = num_kpoints
+    data['weights'] = weights
     return data;
 
 def read_omes(filename:str):
