@@ -2,6 +2,8 @@ import re
 # from configparser import MAX_INTERPOLATION_DEPTH
 # from multiprocessing.spawn import old_main_modules
 import warnings
+import numpy as np
+
 class OptaDOSOutput:
     
     def __init__(self, path:str) -> None:        
@@ -24,6 +26,7 @@ class OptaDOSOutput:
             'drude_broad' : None,
             'photon_energies' : [],
             'file_format' : 'new',
+            'methods' :[],
         }
         self.system = {
             'lattice' : [[],[],[]],
@@ -33,7 +36,6 @@ class OptaDOSOutput:
             'max_layers' : 1
         }
         self.path = path
-        self.methods = []
         self.qe_data = {}
 
         lines = None
@@ -123,8 +125,8 @@ class OptaDOSOutput:
                 self.od_parameters['photon_energies'].append(float(match.groups()[1]))
             match = effworkf_efield.search(line)
             if match:
-                print(match.groups())
-                # self.od_parameters['elec_field_strength'] = match.groups()
+                # print(match.groups())
+                self.od_parameters['elec_field_strength'] = match.groups()
             match = beginning_qe.match(line)
             if match:
                 qe_temp = lines[idx+1:idx+1+self.system['max_atoms']]
@@ -137,13 +139,13 @@ class OptaDOSOutput:
                     self.qe_data[photon_energy]['atoms'].append(info)
             match = bulk.search(line)
             if match:
-                self.qe_data[photon_energy]['bulk'] = float(match.groups()[0])
+                self.qe_data[photon_energy]['bulk'] = float('E'.join(match.groups()))
             match = total_qe.search(line)
             if match:
-                self.qe_data[photon_energy]['total'] = float(match.groups()[0])
+                self.qe_data[photon_energy]['total'] = float('E'.join(match.groups()))
             match = mte.search(line)
             if match:
-                self.qe_data[photon_energy]['mte'] = float(match.groups()[0])
+                self.qe_data[photon_energy]['mte'] = float('E'.join(match.groups()))
             if hasattr(self, 'iprint'):
                 if self.iprint > 1 and 'jdos_max_energy' in line:
                     self.jdos_max_energy = float(line.strip().split()[3])
