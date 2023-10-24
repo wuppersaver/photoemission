@@ -157,7 +157,7 @@ def read_omes(filename:str):
             data['omes'] = np.array(data['omes'])
     return data;
 
-def read_qe_matrix_values(filename:str):
+def read_qe_matrix_values_odo(filename:str):
     data = {}
     with open(filename, "r+b") as input:
             mm = mmap.mmap(input.fileno(),0)
@@ -185,6 +185,7 @@ def read_qe_matrix_values(filename:str):
             mm.close()
             data['matrix'] = np.reshape(matrix.flatten(order='C'),shape,order = 'F')
     return data;
+
 
 def mirror_xy(array_in):
     indices = []

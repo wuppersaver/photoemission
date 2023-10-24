@@ -3,10 +3,11 @@ import re
 # from multiprocessing.spawn import old_main_modules
 import warnings
 import numpy as np
+from pathlib import Path
 
 class OptaDOSOutput:
     
-    def __init__(self, path:str) -> None:        
+    def __init__(self, path:Path) -> None:        
         total_qe = re.compile('Total Quantum Efficiency \(electrons/photon\):\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+')
         mte = re.compile('Weighted Mean Transverse Energy \(eV\):\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+')
         bulk =  re.compile('Bulk\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))? ')
@@ -37,7 +38,7 @@ class OptaDOSOutput:
         }
         self.path = path
         self.qe_data = {}
-
+        self.data_min = []
         lines = None
         with path.open() as f:
             lines = f.readlines()            
@@ -143,13 +144,15 @@ class OptaDOSOutput:
             match = total_qe.search(line)
             if match:
                 self.qe_data[photon_energy]['total'] = float('E'.join(match.groups()))
+                self.data_min.append([float(photon_energy),float('E'.join(match.groups())),0])
             match = mte.search(line)
             if match:
                 self.qe_data[photon_energy]['mte'] = float('E'.join(match.groups()))
+                self.data_min[-1][-1] = float('E'.join(match.groups()))
             if hasattr(self, 'iprint'):
                 if self.iprint > 1 and 'jdos_max_energy' in line:
                     self.jdos_max_energy = float(line.strip().split()[3])
-
+        self.data_min = np.array(self.data_min)
     def create_bandstructure(self,):
         
         return;

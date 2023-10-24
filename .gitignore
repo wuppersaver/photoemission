@@ -149,3 +149,11 @@ script_share/
 function_scripts/OME_plotting.sh
 Default_home.agr
 optados_output_class_new.py
+3*
+FEG*
+*.mp4
+*.avi
+*.xml
+*.dat
+*.cell
+*.xsd
