@@ -142,6 +142,9 @@ test.ipynb
 *.o*
 *.xyz
 GaAs_run.ipynb
+*.pov
+*.png
+*.ini
 
 markdown_files/
 OD_debug_files/
@@ -157,3 +160,5 @@ FEG*
 *.dat
 *.cell
 *.xsd
+temp_maybe_del/
+interface_movie/

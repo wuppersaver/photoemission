@@ -91,7 +91,7 @@ def get_scaled_distances(cartesian):
 def read_bands_file(path:str):
     hartree2eV = 27.21139664
     bohr2ang = 0.529177249
-    lattice, weights = [], []
+    lattice, order = [], []
     data = {}
     with open(path,'r') as f:
         lines = f.readlines()
@@ -105,18 +105,21 @@ def read_bands_file(path:str):
     data['reciprocal_lattice'] = rec_lattice
     kpt_cart = np.zeros((num_kpoints,3))
     kpt_frac = np.zeros((num_kpoints,3))
+    weights = np.zeros((num_kpoints))
     eigenvalues_efermi = np.zeros((num_bands, num_spins, num_kpoints))
     length_kpt_block = (num_bands+1)*num_spins+1
     for k in range(num_kpoints):
         kpt_line_index = 9+k*length_kpt_block
+        k_index = int(lines[kpt_line_index].strip().split()[1]) - 1
+        order.append(k_index)
         frac=np.array([float(x) for x in lines[kpt_line_index].strip().split()[2:5]])
-        weights.append(float(lines[kpt_line_index].strip().split()[5]))
-        kpt_cart[k] = np.dot(rec_lattice,frac)
-        kpt_frac[k] = frac
+        weights[k_index] = (float(lines[kpt_line_index].strip().split()[5]))
+        kpt_cart[k_index] = np.dot(rec_lattice,frac)
+        kpt_frac[k_index] = frac
         for j in range(num_spins):
             for i in range(num_bands):
                 line_index = kpt_line_index + j*(num_bands+1)+i+2
-                eigenvalues_efermi[i,j,k] = float(lines[line_index].strip().split()[0])*hartree2eV-fermi_e
+                eigenvalues_efermi[i,j,k_index] = float(lines[line_index].strip().split()[0])*hartree2eV-fermi_e
     data['scaled_kpt_path'] = get_scaled_distances(kpt_cart)
     data['eigenval_efermi_0'] = eigenvalues_efermi
     data['kpt_cart'] = kpt_cart
@@ -124,6 +127,7 @@ def read_bands_file(path:str):
     data['num_eigen'] = num_bands
     data['num_kpt'] = num_kpoints
     data['weights'] = weights
+    data['order'] = np.array(order)
     return data;
 
 def read_omes(filename:str):

@@ -10,6 +10,7 @@ class OptaDOSOutput:
     def __init__(self, path:Path) -> None:        
         total_qe = re.compile('Total Quantum Efficiency \(electrons/photon\):\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+')
         mte = re.compile('Weighted Mean Transverse Energy \(eV\):\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+')
+        mte_dos = re.compile('DOS estimated MTE \(eV\):\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+')
         bulk =  re.compile('Bulk\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))? ')
         beginning_qe = re.compile('\| Atom \|\s+Atom Order\s+\|\s+Layer\s+\|\s+Quantum Efficiency\s+\|')
         workf_photoe = re.compile('Work Function\s+([0-9]*\.[0-9]+) eV\s+Photon Energy\s+([0-9]*\.[0-9]+) eV')
@@ -130,6 +131,7 @@ class OptaDOSOutput:
                 self.od_parameters['elec_field_strength'] = match.groups()
             match = beginning_qe.match(line)
             if match:
+                if 'simplified DS' in lines[idx+1]: continue
                 qe_temp = lines[idx+1:idx+1+self.system['max_atoms']]
                 for atom in qe_temp:
                     info = atom.split()[1:-1]
@@ -149,10 +151,30 @@ class OptaDOSOutput:
             if match:
                 self.qe_data[photon_energy]['mte'] = float('E'.join(match.groups()))
                 self.data_min[-1][-1] = float('E'.join(match.groups()))
+            match = mte_dos.search(line)
+            if match:
+                self.qe_data[photon_energy]['mte_dos'] = float('E'.join(match.groups()))
+                # self.data_min[-1][-1] = float('E'.join(match.groups()))
             if hasattr(self, 'iprint'):
                 if self.iprint > 1 and 'jdos_max_energy' in line:
                     self.jdos_max_energy = float(line.strip().split()[3])
         self.data_min = np.array(self.data_min)
+    
+    def get_totals(self):
+        totals = []
+        for energy in self.qe_data.keys():
+            totals.append([float(energy),self.qe_data[energy]['total']])
+        return np.array(totals);
+    def get_mtes(self):
+        mte = []
+        for energy in self.qe_data.keys():
+            mte.append([float(energy),self.qe_data[energy]['mte']])
+        return np.array(mte);
+    def get_dos_mtes(self):
+        mte = []
+        for energy in self.qe_data.keys():
+            mte.append([float(energy),self.qe_data[energy]['mte_dos']])
+        return np.array(mte);
     def create_bandstructure(self,):
         
         return;

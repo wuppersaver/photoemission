@@ -11,6 +11,7 @@ import ase
 import warnings
 import json
 import os
+import cv2  
 import math
 
 #from wulffpack import SingleCrystal
@@ -31,9 +32,11 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.eos import EOS
 
 from castep_output_class import *
+from constants import Har2eV
 from optados_output_class import *
 
 import matplotlib.pyplot as plt
+import copy
 
 
 def calc_surface_energy(bulk_energy,slab_energy,n_units, area):
@@ -525,7 +528,7 @@ def create_potential_plot(directory:str=None, bounds = None,centered:bool = True
 
     return fig,ax;
 
-def create_density_plot(directory:str==None, centered:bool = True,mod_odi:bool = True):
+def create_density_plot(directory:str=None, centered:bool = True,mod_odi:bool = True):
     if directory == None:
         directory = f'./structures/'
     if directory[-1] != '/': directory += '/'
@@ -568,35 +571,20 @@ def create_density_plot(directory:str==None, centered:bool = True,mod_odi:bool =
 
     return fig,ax;
 
-def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = False):
+def read_bands2pmg(bands_file:str=None, cell_file:str=None, export:str=None, seed:str = None, specify_cell_symm:str = None, flipxy:bool=False):
+    if (export and seed == 'None'):
+        seed = 'Default_bands'
     num_kpoints, num_spin_comps, num_electrons_up, num_electrons_down, num_bands, fermi_energy = 0,0,0,0,0,0
     kpts_coordinates = []
     eigenvalues = {}
     cell = np.zeros((3,3))
-    found = False
-    if path == None:
-        path = f'./structures/'
-    if path[-1] != '/': path += '/'
-    listOfFiles = os.listdir(path)
-     # create output classes for each of the output files
-    for item in listOfFiles:
-        # print(item.split('.')[-1])
-        if not suffix == None:
-            if suffix in item.split('.')[-1]:
-                bands_item = item
-                found = True
-                seed = bands_item.replace('.bands','')
-        else:
-            if '.bands' in item[-6:] and '.orig' not in item and '.o2b' not in item:
-                bands_item = item
-                found = True
-                seed = bands_item.replace('.bands','')
-    if not found: raise EOFError('The supplied path did not contain a fitting bands file. Please ensure a proper *.bands file exists!')
+    if (bands_file == None or cell_file == None):
+        raise EOFError('Both file locations must be specified!')
+    else:
+        bands_item = bands_file
 
-    with open(f'{path}{bands_item}','r') as f:
+    with open(bands_item,'r') as f:
         lines = f.readlines()
-
-    print(f'{path}{bands_item}')
     
     for idx,line in enumerate(lines):
         line = line.strip()
@@ -606,8 +594,8 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
             num_electrons = lines[idx+2].split()
             num_electrons_up = float(num_electrons[3])
             num_bands = int(lines[idx+3].split()[3])
-            fermi_energy = float(lines[idx+4].split()[5])*27.2113966
-            #print(fermi_energy)
+            fermi_energy = float(lines[idx+4].split()[5])*Har2eV
+            # print(fermi_energy)
 
             kpts_coordinates = np.zeros((num_kpoints,3))
             eigenvalues[Spin.up] = np.zeros([num_bands, num_kpoints])
@@ -624,40 +612,83 @@ def read_bands2pmg(path:str=None, suffix:str=None, cell_file:str=None, export = 
             index = int(temp[1])-1
             kpts_coordinates[index] = [float(temp[2]),float(temp[3]),float(temp[4])]
             for i in range(num_bands):
-                eigenvalues[Spin.up][i][index] = float(lines[idx+2+i].strip())*27.2113966
+                eigenvalues[Spin.up][i][index] = float(lines[idx+2+i].strip())*Har2eV
             if num_spin_comps > 1:
                 for i in range(num_bands-1):
-                    eigenvalues[Spin.down][i][index] = float([idx+2+num_bands+1+i].strip())*27.2113966
+                    eigenvalues[Spin.down][i][index] = float([idx+2+num_bands+1+i].strip())*Har2eV
+    if flipxy:
+        temporary = copy.deepcopy(kpts_coordinates[:,0])
+        temporary2 = copy.deepcopy(kpts_coordinates[:,1])
+        kpts_coordinates[:,0] = temporary2
+        kpts_coordinates[:,1] = temporary
+    kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(cell_file)).get_primitive_standard_structure())#Should use the Setyawan-Curtarolo Convention
+    set_curt = {
+        'tet' : kpt_path.tet(),
+        'cubic' : kpt_path.cubic(),
+        'orhomb' : kpt_path.orc(),
+    }
+    if specify_cell_symm != None:
+        kpt_path = set_curt[specify_cell_symm]['kpoints']
+    else:
+        kpt_path = kpt_path.kpath['kpoints']
 
-    if cell_file == None:
-        for item in listOfFiles:
-            if '_geometry.cell' in item:
-                kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(f'{path}{item}')).get_primitive_standard_structure())#Should use the Setyawan-Curtarolo Convention
-    else: 
-        kpt_path = KPathSetyawanCurtarolo(SpacegroupAnalyzer(read_cell2pmg(cell_file)).get_primitive_standard_structure())#Should use the Setyawan-Curtarolo Convention
-        
     high_symm_dict, high_symm_indices = create_label_dict(kpt_path, kpts_coordinates)
-    print(high_symm_dict)
+    print(f'# kpts = {num_kpoints}',high_symm_dict)
     print(high_symm_indices)
-    print(num_kpoints)
     final_kpt_coordinates = np.zeros((num_kpoints+len(high_symm_indices)-2,3))
     final_eigenvalues = {Spin.up : np.zeros([num_bands, num_kpoints+len(high_symm_indices)-2])}
     if num_spin_comps > 1:
         final_eigenvalues = {Spin.down : np.zeros([num_bands, num_kpoints+len(high_symm_indices)-2])}
-    print(high_symm_indices)
     for i in range(len(high_symm_indices)-1):
         final_kpt_coordinates[high_symm_indices[i]+i:high_symm_indices[i+1]+1+i] = kpts_coordinates[high_symm_indices[i]:high_symm_indices[i+1]+1]
         final_eigenvalues[Spin.up][:,high_symm_indices[i]+i:high_symm_indices[i+1]+1+i] = eigenvalues[Spin.up][:,high_symm_indices[i]:high_symm_indices[i+1]+1]
         if num_spin_comps > 1:
            final_eigenvalues[Spin.down][:,high_symm_indices[i]+i:high_symm_indices[i+1]+1+i] = eigenvalues[Spin.down][:,high_symm_indices[i]:high_symm_indices[i+1]+1]
     new_bandstruct = BandStructureSymmLine(final_kpt_coordinates, final_eigenvalues,lattice_obj.reciprocal_lattice, fermi_energy,high_symm_dict,coords_are_cartesian=False);
-    if export:
-        with open(f'./structures/band_jsons/{seed}.json', 'w') as f:
+    if export != None:
+        with open(export, 'w') as f:
             json.dump(new_bandstruct.as_dict(), f)
     return new_bandstruct;
 
+def read_bands2raw(path:str):
+    hartree2eV = 27.21139664
+    bohr2ang = 0.529177249
+    lattice = []
+    data = {}
+    with open(path,'r') as f:
+        lines = f.readlines()
+    num_kpoints = int(lines[0].strip().split()[3])
+    num_spins = int(lines[1].strip().split()[4])
+    num_bands = int(lines[3].strip().split()[3])
+    fermi_e = float(lines[4].strip().split()[5])*hartree2eV
+    for i in range(3):
+        lattice.append([float(x)*bohr2ang for x in lines[6+i].strip().split()])
+    rec_lattice = real_to_rec_lattice(lattice)
+    data['reciprocal_lattice'] = rec_lattice
+    kpt_cart = np.zeros((num_kpoints,3),dtype=float)
+    kpt_frac = np.zeros((num_kpoints,3),dtype=float)
+    eigenvalues_efermi = np.zeros((num_bands, num_spins, num_kpoints))
+    length_kpt_block = (num_bands+1)*num_spins+1
+    for k in range(num_kpoints):
+        kpt_line_index = 9+k*length_kpt_block
+        frac=np.array([float(x) for x in lines[kpt_line_index].strip().split()[2:5]])
+        kpt_cart[k] = np.dot(rec_lattice,frac)
+        kpt_frac[k] = frac
+        for j in range(num_spins):
+            for i in range(num_bands):
+                line_index = kpt_line_index + j*(num_bands+1)+i+2
+                eigenvalues_efermi[i,j,k] = float(lines[line_index].strip().split()[0])*hartree2eV-fermi_e
+    data['eigenval_efermi_0'] = eigenvalues_efermi
+    data['kpt_cart'] = kpt_cart
+    data['kpt_frac'] = kpt_frac
+    data['num_eigen'] = num_bands
+    data['num_kpt'] = num_kpoints
+    return data;
+
+
+
 def create_label_dict(kpath, kpts):
-    naming_dict = kpath.kpath['kpoints']
+    naming_dict = kpath
     labels = {}
     high_symm_indices = []
     for key in naming_dict.keys():
@@ -675,33 +706,38 @@ def read_cell2pmg(path:str):
     species = []
     coords = []
     with open(path,'r') as f:
-        for line in f:
-            line = line.strip()
-            if '%BLOCK LATTICE_CART' in line or '%BLOCK lattice_cart' in line:
-                for i in range(3):
-                    temp = next(f).strip().split()
-                    for j in range(len(temp)):
-                        cell[i,j] = float(temp[j])
-                lattice_obj = Lattice(cell)
-            if '%BLOCK LATTICE_ABC' in line:
-                axes = [float(i) for i in next(f).strip().split()]
-                angles = [float(i) for i in next(f).strip().split()]
-                #print(axes,angles)
-                lattice_obj = Lattice.from_parameters(a= axes[0], b=axes[1], c = axes[2], alpha = angles[0], beta = angles[1], gamma = angles[2])
-            if '%BLOCK POSITIONS_ABS' in line:
-                while True:
-                    temp = next(f).strip().split()
-                    if temp[0] == '%ENDBLOCK':
-                        break
+        lines = f.readlines()
+    for idx,line in enumerate(lines):
+        if r'%block lattice_cart' in line.lower():
+            for i in range(3):
+                temp = lines[idx+i+1].strip().split()
+                cell[i,:] = [float(x) for x in temp]
+            lattice_obj = Lattice(cell)
+        if r'%block lattice_abc' in line.lower():
+            axes = [float(i) for i in lines[idx+1].strip().split()]
+            angles = [float(i) for i in lines[idx+2].strip().split()]
+            lattice_obj = Lattice.from_parameters(a= axes[0], b=axes[1], c = axes[2], alpha = angles[0], beta = angles[1], gamma = angles[2])
+        if r'%block positions_abs' in line.lower():
+            i = 1
+            while True:
+                temp = lines[idx+i].strip()
+                if r'%endblock' in temp.lower():
+                    break
+                else:
+                    temp = temp.split()
                     species.append(temp[0])
                     coords.append([float(temp[1]),float(temp[2]),float(temp[3])])
-                cartesian = True
-                break
-            if '%BLOCK POSITIONS_FRAC' in line or '%BLOCK positions_frac' in line:
-                while True:
-                    temp = next(f).strip().split()
-                    if temp[0] == '%ENDBLOCK':
-                        break
+                i += 1
+            cartesian = True
+            break
+        if '%block positions_frac' in line.lower():
+            i = 1
+            while True:
+                temp = lines[idx+i].strip()
+                if r'%endblock' in temp.lower():
+                    break
+                else:
+                    temp = temp.split()
                     species.append(temp[0])
                     temp_coord = []
                     for item in temp[1:]:
@@ -710,9 +746,29 @@ def read_cell2pmg(path:str):
                             temp_coord.append(float(fraction[0])/float(fraction[1]))
                         else: temp_coord.append(float(item))
                     coords.append(temp_coord)
-                cartesian = False
-                break
+                i += 1
+            cartesian = False
+            break
     return Structure(lattice_obj,species, coords, coords_are_cartesian= cartesian);
+
+def real_to_rec_lattice(real):
+    reciprocal = np.zeros((3,3))
+    V = np.dot(real[0],np.cross(real[1],real[2]))
+    reciprocal[0] = np.cross(real[1],real[2])*(2*np.pi/V)
+    reciprocal[1] = np.cross(real[2],real[0])*(2*np.pi/V)
+    reciprocal[2] = np.cross(real[0],real[1])*(2*np.pi/V)
+    return reciprocal;
+
+def get_scaled_distances(cartesian):
+    moved = np.insert(cartesian, 0, cartesian[0]).reshape((np.shape(cartesian)[0]+1,np.shape(cartesian)[1]))
+    cart_diff = cartesian - moved[:-1]
+    distances = np.linalg.norm(cart_diff,axis=1)
+    for idx, i in enumerate(distances):
+        if idx == 0:
+            continue
+        distances[idx] = distances[idx-1] + distances[idx]
+    scaled_distances = distances/np.nanmax(distances)
+    return scaled_distances;
 
 def read_geometry_traj_file(path:str = None, seed:str = None):
     ''' This function reads in a castep geometry optimisation trajectory file (.geom) and returns a data dictionary with pymatgen objects, forces and total energies.
@@ -1611,3 +1667,99 @@ def generate_qsub_file(**options):
         for line in output:
             f.write(line)
     return
+  
+# Video Generating function
+def generate_video(image_folder:str,video_name:str,framerate:float):
+    if Path(f'./{video_name}.mp4').is_file(): raise NameError('The chosen *.mp4 file exists - choose another name!')        
+    images = [img for img in os.listdir(image_folder)
+            #   if '3step' in img]
+              if img.endswith(".png")]
+    print(images)
+  
+    frame = cv2.imread(os.path.join(image_folder, images[0]))
+  
+    # setting the frame width, height width
+    # the width, height of first image
+    height, width, layers = frame.shape  
+  
+    video = cv2.VideoWriter('temp.avi', 0, framerate, (width, height)) 
+  
+    # Appending the images to the video one by one
+    for image in images: 
+        video.write(cv2.imread(os.path.join(image_folder, image))) 
+    # Deallocating memories taken for window creation
+    cv2.destroyAllWindows() 
+    video.release()  # releasing the video generated
+    os.system(f"ffmpeg -i temp.avi -c:v libx264 -preset slow -crf 19 -c:a libvo_aacenc -b:a 128k {video_name}.mp4")
+    # os.remove('./temp.avi')
+
+def MTE_2_intrinsic_emittance(x):
+    """Calculates the intrinsic emittance in um/mm from MTE [meV]"""
+    c_squared = 8.987551787E+16
+    melec = 9.109E-31
+    eV2J = 1.602E-19
+    return 1000*np.sqrt((x/1000*eV2J)/(melec*c_squared))
+
+def fermi_dirac(x,temperature):
+    k_B = 8.617333262E-5
+    exponent = x/(k_B*temperature)
+    if exponent > 250:
+        return 0.0
+    if exponent < -250:
+        return 1.0
+    else:
+        return 1/(np.exp(exponent)+1)
+
+def calculate_Saha_dos_model(photon_min, photon_max, photon_num, workfct,temperature,dos_file,efermi_already_0=True,efermi=None):
+    photon_energies = np.round(np.array([float(x) for x  in np.linspace(photon_min,photon_max,photon_num)]),3)
+    # Load DOS data:
+    dos_dat = np.genfromtxt(dos_file)[:,:-1]
+    if not efermi_already_0 and efermi != None:
+        energy = np.round(dos_dat[:,0],3)-efermi
+    elif not efermi_already_0 and efermi != None:
+        warnings.warn('Efermi was not set to 0, but no efermi value was supplied! Assuming E_f = 0 eV')
+    else:
+        energy = np.round(dos_dat[:,0],3)
+
+    dos = dos_dat[:,1]
+    delta_E = round(energy[1]-energy[0],3)
+    fd = np.zeros(energy.shape)
+    # Create FD data
+    for index, e in enumerate(energy):
+        fd[index] = fermi_dirac(e, temperature)
+
+
+    final_MTE,numerators,denominators = [],[],[]
+    for Ephoton in photon_energies:
+        numerator = 0
+        denominator = 0
+        diff = 1E6
+        # Find the index of the energy bin with the energy closes to E_vac - hbar*omega - minimal emitting energy
+        for index,temp in enumerate(energy):
+            if (abs(temp - round(workfct - Ephoton,3)) < diff):
+                diff = abs(temp - (workfct - Ephoton))
+                current_E_index = index
+        delta_index_photon = int(Ephoton/delta_E)
+        
+        # Go from minimal energy (i.e. workfct - photon) to basically unoccupied bands or maximum_dos_energy - hbar*omega
+        while fd[current_E_index] > 1E-30 or current_E_index+delta_index_photon < len(energy)-100:
+            fd_initial = fd[current_E_index]
+            dos_initial = dos[current_E_index]
+            
+            fd_final = fd[current_E_index+delta_index_photon]
+            dos_final = dos[current_E_index+delta_index_photon]
+            # Calculate the excess energy as E + hbar*omega - workfct <-(i.e E_vacuum with E_F=0)
+            E_excess = energy[current_E_index+delta_index_photon]-workfct
+
+            numerator += dos_initial*fd_initial*dos_final*(1-fd_final)*E_excess**2
+            denominator += dos_initial*fd_initial*dos_final*(1-fd_final)*E_excess
+            current_E_index += 1
+            
+        if abs(denominator) > 0:
+            numerators.append(numerator)
+            denominators.append(denominator)
+            final_MTE.append(0.5*numerator/denominator)
+        else:
+            final_MTE.append(0)
+        
+    return photon_energies,final_MTE
